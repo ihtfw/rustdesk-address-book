@@ -33,6 +33,7 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
   const [newTokenLabel, setNewTokenLabel] = useState("");
   const [newTokenPerms, setNewTokenPerms] = useState("rw");
   const [createdTokenValue, setCreatedTokenValue] = useState<string | null>(null);
+  const [addingSub, setAddingSub] = useState(false);
   const t = useI18n();
 
   useEffect(() => {
@@ -109,15 +110,21 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
 
   const handleAddSubscription = async () => {
     setError("");
-    if (!subName.trim() || !subUrl.trim() || !subKey.trim()) return;
+    if (!subName.trim() || !subUrl.trim() || !subKey.trim() || addingSub) return;
+    setAddingSub(true);
     try {
-      let sub = await api.addSubscription(subName.trim(), subUrl.trim(), subKey.trim(), subAccessToken.trim() || undefined);
-      // Trigger first sync to create channel / pull data
-      try { await api.syncSubscription(sub.id); } catch { /* shown elsewhere */ }
+      const sub = await api.addSubscription(subName.trim(), subUrl.trim(), subKey.trim(), subAccessToken.trim() || undefined);
+      // Trigger first sync — if server is unreachable, roll back
+      try {
+        await api.syncSubscription(sub.id);
+      } catch (syncErr: unknown) {
+        // Remove the subscription we just created
+        try { await api.removeSubscription(sub.id); } catch { /* best effort */ }
+        throw new Error(String(syncErr));
+      }
       // Fetch permissions from server and update subscription
       try {
-        const perms = await api.checkSubscriptionPermissions(sub.id);
-        sub = { ...sub, permissions: perms };
+        await api.checkSubscriptionPermissions(sub.id);
       } catch { /* server may be unreachable, permissions stay null */ }
       // Reload subscriptions to get updated admin_token + permissions
       try {
@@ -132,6 +139,8 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
       setSubAccessToken("");
     } catch (err: unknown) {
       setError(String(err));
+    } finally {
+      setAddingSub(false);
     }
   };
 
@@ -415,8 +424,8 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
                   </button>
                 </>
               ) : (
-                <button className="btn btn-primary" onClick={handleAddSubscription} disabled={!subName.trim() || !subUrl.trim() || !subKey.trim()}>
-                  {t.addSubscription}
+                <button className="btn btn-primary" onClick={handleAddSubscription} disabled={addingSub || !subName.trim() || !subUrl.trim() || !subKey.trim()}>
+                  {addingSub ? t.pleaseWait : t.addSubscription}
                 </button>
               )}
             </div>
