@@ -707,13 +707,15 @@ export default function MainPage({
                 {syncingIds.has(sub.id) ? t.syncing : t.syncNow}
               </button>
             )}
-            <button
-              className="btn btn-primary btn-action"
-              onClick={() => setEditMode({ kind: "edit-folder", folder: f })}
-            >
-              ✏️ {t.edit}
-            </button>
-            {f.id !== root.id && (
+            {!sub && (
+              <button
+                className="btn btn-primary btn-action"
+                onClick={() => setEditMode({ kind: "edit-folder", folder: f })}
+              >
+                ✏️ {t.edit}
+              </button>
+            )}
+            {!sub && f.id !== root.id && (
               <button
                 className="btn btn-danger btn-action"
                 onClick={() => handleDelete(f.id)}
