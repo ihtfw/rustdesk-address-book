@@ -812,7 +812,7 @@ export default function MainPage({
                 ✕ {t.cancel}
               </button>
               <button className="btn btn-primary btn-action" onClick={handleExportExecute}>
-                💾 {t.exportConfirm}
+                {t.exportConfirm}
               </button>
             </div>
           </div>
@@ -841,7 +841,7 @@ export default function MainPage({
                 ✕ {t.cancel}
               </button>
               <button className="btn btn-primary btn-action" onClick={handleImportExecute}>
-                ⬆️ {t.import_}
+                {t.import_}
               </button>
             </div>
           </div>

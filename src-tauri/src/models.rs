@@ -104,6 +104,29 @@ impl AddressBook {
             },
         }
     }
+
+    /// Merge imported nodes into this address book.
+    /// - If a node with the same UUID already exists, update it in place.
+    /// - If a node is new, add it to the root.
+    pub fn merge_import(&mut self, imported_children: Vec<TreeNode>) {
+        // Build a map of all existing node IDs → location for quick lookup
+        let existing_ids = collect_all_ids_set(&self.root);
+
+        for child in imported_children {
+            let child_id = match &child {
+                TreeNode::Folder(f) => f.id,
+                TreeNode::Connection(c) => c.id,
+            };
+
+            if existing_ids.contains(&child_id) {
+                // Update existing node in place
+                update_node_recursive(&mut self.root, &child);
+            } else {
+                // New node — add to root
+                self.root.children.push(child);
+            }
+        }
+    }
 }
 
 fn find_folder_recursive(folder: &mut Folder, target_id: Uuid) -> Option<&mut Folder> {
@@ -207,4 +230,81 @@ fn filter_selected(nodes: &[TreeNode], selected: &HashSet<Uuid>) -> Vec<TreeNode
         }
     }
     result
+}
+
+/// Collect all node IDs in a folder tree into a HashSet.
+fn collect_all_ids_set(folder: &Folder) -> HashSet<Uuid> {
+    let mut ids = HashSet::new();
+    ids.insert(folder.id);
+    for child in &folder.children {
+        match child {
+            TreeNode::Folder(f) => {
+                ids.extend(collect_all_ids_set(f));
+            }
+            TreeNode::Connection(c) => {
+                ids.insert(c.id);
+            }
+        }
+    }
+    ids
+}
+
+/// Recursively find and update a node by its UUID.
+/// For connections: update all fields.
+/// For folders: update name/description, then recursively merge children.
+fn update_node_recursive(folder: &mut Folder, import_node: &TreeNode) {
+    match import_node {
+        TreeNode::Connection(import_conn) => {
+            // Look for matching connection in this folder's children
+            for child in &mut folder.children {
+                if let TreeNode::Connection(ref mut c) = child {
+                    if c.id == import_conn.id {
+                        c.name = import_conn.name.clone();
+                        c.description = import_conn.description.clone();
+                        c.rustdesk_id = import_conn.rustdesk_id.clone();
+                        c.password = import_conn.password.clone();
+                        c.updated_at = import_conn.updated_at;
+                        return;
+                    }
+                }
+            }
+            // Not found at this level — recurse into subfolders
+            for child in &mut folder.children {
+                if let TreeNode::Folder(ref mut f) = child {
+                    update_node_recursive(f, import_node);
+                }
+            }
+        }
+        TreeNode::Folder(import_folder) => {
+            // Look for matching folder
+            for child in &mut folder.children {
+                if let TreeNode::Folder(ref mut f) = child {
+                    if f.id == import_folder.id {
+                        f.name = import_folder.name.clone();
+                        f.description = import_folder.description.clone();
+                        // Recursively merge children of this folder
+                        let existing_ids = collect_all_ids_set(f);
+                        for import_child in &import_folder.children {
+                            let import_child_id = match import_child {
+                                TreeNode::Folder(ff) => ff.id,
+                                TreeNode::Connection(cc) => cc.id,
+                            };
+                            if existing_ids.contains(&import_child_id) {
+                                update_node_recursive(f, import_child);
+                            } else {
+                                f.children.push(import_child.clone());
+                            }
+                        }
+                        return;
+                    }
+                }
+            }
+            // Not found at this level — recurse into subfolders
+            for child in &mut folder.children {
+                if let TreeNode::Folder(ref mut f) = child {
+                    update_node_recursive(f, import_node);
+                }
+            }
+        }
+    }
 }

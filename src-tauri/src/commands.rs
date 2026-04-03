@@ -494,13 +494,11 @@ pub fn import_nodes(
     let import_book: AddressBook =
         serde_json::from_slice(&plaintext).map_err(|e| AppError::Storage(e.to_string()))?;
 
-    // Merge imported children into current book's root
+    // Merge imported children into current book (update existing by UUID, add new)
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
 
-    for child in import_book.root.children {
-        book.root.children.push(child);
-    }
+    book.merge_import(import_book.root.children);
     let result = book.root.clone();
 
     drop(book_lock);
