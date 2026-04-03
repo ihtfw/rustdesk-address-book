@@ -20,10 +20,17 @@ pub struct AppConfig {
     /// Whether to automatically check for updates. Defaults to true.
     #[serde(default = "default_true")]
     pub auto_update: bool,
+    /// UI language code (e.g. "en", "ru"). Defaults to "en".
+    #[serde(default = "default_lang")]
+    pub language: String,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_lang() -> String {
+    "en".to_string()
 }
 
 /// Get the app config directory (always in the default location).

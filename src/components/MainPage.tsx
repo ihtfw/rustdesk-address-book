@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { Folder, TreeNode, SelectedItem, Connection } from "../types";
 import * as api from "../api";
+import { useI18n, type Locale } from "../i18n";
 import TreeView from "../components/TreeView";
 import ConnectionForm from "../components/ConnectionForm";
 import FolderForm from "../components/FolderForm";
@@ -16,6 +17,8 @@ interface ContextMenu {
 interface Props {
   initialRoot: Folder;
   onLock: () => void;
+  locale: Locale;
+  onLocaleChange: (locale: Locale) => void;
 }
 
 type EditMode =
@@ -25,7 +28,12 @@ type EditMode =
   | { kind: "new-connection"; parentId: string }
   | { kind: "edit-connection"; connection: Connection };
 
-export default function MainPage({ initialRoot, onLock }: Props) {
+export default function MainPage({
+  initialRoot,
+  onLock,
+  locale,
+  onLocaleChange,
+}: Props) {
   const [root, setRoot] = useState<Folder>(initialRoot);
   const [selected, setSelected] = useState<SelectedItem>(null);
   const [editMode, setEditMode] = useState<EditMode>(null);
@@ -35,6 +43,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
   const [folderSearch, setFolderSearch] = useState("");
   const [connectionSearch, setConnectionSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const t = useI18n();
 
   const refreshTree = useCallback(async () => {
     try {
@@ -291,14 +300,14 @@ export default function MainPage({ initialRoot, onLock }: Props) {
         <div className="detail-panel">
           <h2>🖥️ {c.name}</h2>
           <div className="detail-field">
-            <strong>RustDesk ID:</strong> {c.rustdesk_id}
+            <strong>{t.rustdeskId}</strong> {c.rustdesk_id}
           </div>
           <div className="detail-field">
-            <strong>Password:</strong> {c.password ? "••••••" : "(none)"}
+            <strong>{t.password}</strong> {c.password ? "••••••" : "(none)"}
           </div>
           {c.description && (
             <div className="detail-field">
-              <strong>Description:</strong> {c.description}
+              <strong>{t.description}</strong> {c.description}
             </div>
           )}
           <div className="form-actions">
@@ -314,13 +323,13 @@ export default function MainPage({ initialRoot, onLock }: Props) {
                 setEditMode({ kind: "edit-connection", connection: c })
               }
             >
-              Edit
+              {t.edit}
             </button>
             <button
               className="btn btn-danger"
               onClick={() => handleDelete(c.id)}
             >
-              Delete
+              {t.delete_}
             </button>
           </div>
         </div>
@@ -334,25 +343,25 @@ export default function MainPage({ initialRoot, onLock }: Props) {
           <h2>📁 {f.name}</h2>
           {f.description && (
             <div className="detail-field">
-              <strong>Description:</strong> {f.description}
+              <strong>{t.description}</strong> {f.description}
             </div>
           )}
           <div className="detail-field">
-            <strong>Items:</strong> {f.children.length}
+            <strong>{t.items}</strong> {f.children.length}
           </div>
           <div className="form-actions">
             <button
               className="btn btn-primary"
               onClick={() => setEditMode({ kind: "edit-folder", folder: f })}
             >
-              Edit
+              {t.edit}
             </button>
             {f.id !== root.id && (
               <button
                 className="btn btn-danger"
                 onClick={() => handleDelete(f.id)}
               >
-                Delete
+                {t.delete_}
               </button>
             )}
           </div>
@@ -362,7 +371,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
 
     return (
       <div className="detail-panel detail-empty">
-        <p>Select an item or right-click the tree to add connections.</p>
+        <p>{t.selectItemHint}</p>
       </div>
     );
   };
@@ -378,7 +387,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
               setEditMode({ kind: "new-folder", parentId: root.id })
             }
           >
-            📁+ Folder
+            {t.folder}
           </button>
           <button
             className="btn btn-small"
@@ -386,7 +395,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
               setEditMode({ kind: "new-connection", parentId: root.id })
             }
           >
-            🖥️+ Connection
+            {t.connection}
           </button>
         </div>
         <div className="toolbar-right">
@@ -394,10 +403,10 @@ export default function MainPage({ initialRoot, onLock }: Props) {
             className="btn btn-small"
             onClick={() => setShowSettings(true)}
           >
-            ⚙️ Settings
+            {t.settings}
           </button>
           <button className="btn btn-small" onClick={onLock}>
-            🔒 Lock
+            {t.lock}
           </button>
         </div>
       </div>
@@ -417,13 +426,13 @@ export default function MainPage({ initialRoot, onLock }: Props) {
           <div className="search-box">
             <input
               type="text"
-              placeholder="🔍 Filter folders..."
+              placeholder={t.filterFolders}
               value={folderSearch}
               onChange={(e) => setFolderSearch(e.target.value)}
             />
             <input
               type="text"
-              placeholder="🔍 Filter connections..."
+              placeholder={t.filterConnections}
               value={connectionSearch}
               onChange={(e) => setConnectionSearch(e.target.value)}
             />
@@ -466,7 +475,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
                   setContextMenu(null);
                 }}
               >
-                📁 New Folder
+                {t.newFolder}
               </div>
               <div
                 className="context-item"
@@ -478,7 +487,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
                   setContextMenu(null);
                 }}
               >
-                🖥️ New Connection
+                {t.newConnection}
               </div>
               <div className="context-separator" />
               <div
@@ -491,7 +500,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
                   setContextMenu(null);
                 }}
               >
-                ✏️ Edit Folder
+                {t.editFolder}
               </div>
               {contextMenu.node.id !== root.id && (
                 <div
@@ -501,7 +510,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
                     setContextMenu(null);
                   }}
                 >
-                  🗑️ Delete Folder
+                  {t.deleteFolder}
                 </div>
               )}
             </>
@@ -515,7 +524,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
                   setContextMenu(null);
                 }}
               >
-                ▶ Connect
+                {t.connect}
               </div>
               <div className="context-separator" />
               <div
@@ -528,7 +537,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
                   setContextMenu(null);
                 }}
               >
-                ✏️ Edit Connection
+                {t.editConnection}
               </div>
               <div
                 className="context-item context-danger"
@@ -537,7 +546,7 @@ export default function MainPage({ initialRoot, onLock }: Props) {
                   setContextMenu(null);
                 }}
               >
-                🗑️ Delete Connection
+                {t.deleteConnection}
               </div>
             </>
           )}
@@ -545,7 +554,13 @@ export default function MainPage({ initialRoot, onLock }: Props) {
       )}
 
       {/* Settings modal */}
-      {showSettings && <Settings onClose={() => setShowSettings(false)} />}
+      {showSettings && (
+        <Settings
+          onClose={() => setShowSettings(false)}
+          locale={locale}
+          onLocaleChange={onLocaleChange}
+        />
+      )}
     </div>
   );
 }

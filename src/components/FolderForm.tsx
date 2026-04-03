@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Folder } from "../types";
+import { useI18n } from "../i18n";
 
 interface Props {
   folder?: Folder;
@@ -16,6 +17,7 @@ export default function FolderForm({
 }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const t = useI18n();
 
   useEffect(() => {
     if (folder) {
@@ -36,37 +38,37 @@ export default function FolderForm({
 
   return (
     <div className="detail-panel">
-      <h2>{isEdit ? "Edit Folder" : "New Folder"}</h2>
+      <h2>{isEdit ? t.editFolderTitle : t.newFolderTitle}</h2>
       <form onSubmit={handleSubmit}>
         <div className="form-group">
-          <label htmlFor="folder-name">Name</label>
+          <label htmlFor="folder-name">{t.name}</label>
           <input
             id="folder-name"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Office Servers"
+            placeholder={t.folderNamePlaceholder}
             required
             disabled={isRoot}
           />
         </div>
 
         <div className="form-group">
-          <label htmlFor="folder-desc">Description</label>
+          <label htmlFor="folder-desc">{t.description}</label>
           <textarea
             id="folder-desc"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            placeholder="Notes about this folder..."
+            placeholder={t.folderDescPlaceholder}
             rows={3}
           />
         </div>
 
         <div className="form-actions">
           <button type="submit" className="btn btn-primary">
-            {isEdit ? "Save" : "Add Folder"}
+            {isEdit ? t.save : t.addFolder}
           </button>
           <button type="button" className="btn" onClick={onCancel}>
-            Cancel
+            {t.cancel}
           </button>
         </div>
       </form>

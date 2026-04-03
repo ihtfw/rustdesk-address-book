@@ -74,3 +74,8 @@ export const detectRustdesk = () => invoke<string>("detect_rustdesk");
 export const getAutoUpdate = () => invoke<boolean>("get_auto_update");
 export const setAutoUpdate = (enabled: boolean) =>
   invoke<void>("set_auto_update", { enabled });
+
+// Language
+export const getLanguage = () => invoke<string>("get_language");
+export const setLanguage = (lang: string) =>
+  invoke<void>("set_language", { lang });

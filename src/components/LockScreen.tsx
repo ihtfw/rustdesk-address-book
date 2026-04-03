@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import * as api from "../api";
+import { useI18n } from "../i18n";
 
 interface Props {
   exists: boolean;
@@ -22,6 +23,7 @@ export default function LockScreen({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState(storagePath);
+  const t = useI18n();
 
   useEffect(() => {
     setCurrentPath(storagePath);
@@ -32,11 +34,11 @@ export default function LockScreen({
     setError("");
 
     if (!exists && password !== confirm) {
-      setError("Passwords do not match");
+      setError(t.passwordsDoNotMatch);
       return;
     }
     if (password.length < 4) {
-      setError("Password must be at least 4 characters");
+      setError(t.passwordTooShort);
       return;
     }
 
@@ -57,7 +59,7 @@ export default function LockScreen({
   const handleBrowse = async () => {
     try {
       const selected = await open({
-        title: "Select Address Book File",
+        title: t.selectAddressBookFile,
         filters: [{ name: "Address Book", extensions: ["enc"] }],
       });
       if (selected) {
@@ -73,7 +75,7 @@ export default function LockScreen({
   const handleCreateAt = async () => {
     try {
       const selected = await save({
-        title: "Choose Location for Address Book",
+        title: t.chooseLocation,
         defaultPath: "addressbook.enc",
         filters: [{ name: "Address Book", extensions: ["enc"] }],
       });
@@ -102,22 +104,20 @@ export default function LockScreen({
     <div className="lock-screen">
       <div className="lock-card">
         <div className="lock-icon">🔒</div>
-        <h1>{exists ? "Unlock Address Book" : "Create Address Book"}</h1>
+        <h1>{exists ? t.unlockTitle : t.createTitle}</h1>
         <p className="lock-subtitle">
-          {exists
-            ? "Enter your master password to unlock"
-            : "Set a master password to protect your connections"}
+          {exists ? t.unlockSubtitle : t.createSubtitle}
         </p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="password">Master Password</label>
+            <label htmlFor="password">{t.masterPassword}</label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter password..."
+              placeholder={t.enterPassword}
               autoFocus
               disabled={loading}
             />
@@ -125,13 +125,13 @@ export default function LockScreen({
 
           {!exists && (
             <div className="form-group">
-              <label htmlFor="confirm">Confirm Password</label>
+              <label htmlFor="confirm">{t.confirmPassword}</label>
               <input
                 id="confirm"
                 type="password"
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Confirm password..."
+                placeholder={t.confirmPasswordPlaceholder}
                 disabled={loading}
               />
             </div>
@@ -144,12 +144,12 @@ export default function LockScreen({
             className="btn btn-primary btn-full"
             disabled={loading}
           >
-            {loading ? "Please wait..." : exists ? "Unlock" : "Create"}
+            {loading ? t.pleaseWait : exists ? t.unlock : t.create}
           </button>
         </form>
 
         <div className="storage-path-section">
-          <label>Address Book Location</label>
+          <label>{t.addressBookLocation}</label>
           <div className="storage-path-display" title={currentPath}>
             {currentPath}
           </div>
@@ -158,25 +158,25 @@ export default function LockScreen({
               type="button"
               className="btn btn-small"
               onClick={handleBrowse}
-              title="Open an existing address book file"
+              title={t.selectAddressBookFile}
             >
-              📂 Open...
+              {t.open}
             </button>
             <button
               type="button"
               className="btn btn-small"
               onClick={handleCreateAt}
-              title="Choose where to create a new address book"
+              title={t.chooseLocation}
             >
-              💾 Save As...
+              {t.saveAs}
             </button>
             <button
               type="button"
               className="btn btn-small"
               onClick={handleResetPath}
-              title="Reset to default location"
+              title={t.default_}
             >
-              ↩ Default
+              {t.default_}
             </button>
           </div>
         </div>

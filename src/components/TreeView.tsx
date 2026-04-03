@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { TreeNode, SelectedItem } from "../types";
+import { useI18n } from "../i18n";
 
 interface Props {
   nodes: TreeNode[];
@@ -137,7 +138,7 @@ export default function TreeView({
   onDrop,
 }: Props) {
   if (nodes.length === 0) {
-    return <div className="tree-empty">No items yet. Right-click to add.</div>;
+    return <div className="tree-empty">{useI18n().noItemsYet}</div>;
   }
 
   return (

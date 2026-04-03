@@ -1,11 +1,19 @@
 import { useState, useEffect } from "react";
 import * as api from "../api";
+import { useI18n, type Locale } from "../i18n";
 
 interface Props {
   onClose: () => void;
+  locale: Locale;
+  onLocaleChange: (locale: Locale) => void;
 }
 
-export default function Settings({ onClose }: Props) {
+const LANGUAGE_OPTIONS: { value: Locale; label: string }[] = [
+  { value: "en", label: "English" },
+  { value: "ru", label: "Русский" },
+];
+
+export default function Settings({ onClose, locale, onLocaleChange }: Props) {
   const [rustdeskPath, setRustdeskPath] = useState("");
   const [autoUpdate, setAutoUpdate] = useState(true);
   const [oldPassword, setOldPassword] = useState("");
@@ -13,6 +21,7 @@ export default function Settings({ onClose }: Props) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const t = useI18n();
 
   useEffect(() => {
     api
@@ -39,7 +48,7 @@ export default function Settings({ onClose }: Props) {
     setMessage("");
     try {
       await api.setRustdeskPath(rustdeskPath);
-      setMessage("RustDesk path saved");
+      setMessage(t.rustdeskPathSaved);
     } catch (err: unknown) {
       setError(String(err));
     }
@@ -52,7 +61,7 @@ export default function Settings({ onClose }: Props) {
       const path = await api.detectRustdesk();
       setRustdeskPath(path);
       await api.setRustdeskPath(path);
-      setMessage(`Detected: ${path}`);
+      setMessage(t.detected(path));
     } catch (err: unknown) {
       setError(String(err));
     }
@@ -64,16 +73,16 @@ export default function Settings({ onClose }: Props) {
     setMessage("");
 
     if (newPassword !== confirmPassword) {
-      setError("New passwords do not match");
+      setError(t.newPasswordsDoNotMatch);
       return;
     }
     if (newPassword.length < 4) {
-      setError("Password must be at least 4 characters");
+      setError(t.passwordTooShort);
       return;
     }
     try {
       await api.changePassword(oldPassword, newPassword);
-      setMessage("Password changed successfully");
+      setMessage(t.passwordChangedSuccessfully);
       setOldPassword("");
       setNewPassword("");
       setConfirmPassword("");
@@ -86,35 +95,35 @@ export default function Settings({ onClose }: Props) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h2>Settings</h2>
+          <h2>{t.settingsTitle}</h2>
           <button className="btn btn-small" onClick={onClose}>
             ✕
           </button>
         </div>
 
         <div className="settings-section">
-          <h3>RustDesk Executable</h3>
+          <h3>{t.rustdeskExecutable}</h3>
           <div className="form-group">
-            <label htmlFor="rd-path">Path</label>
+            <label htmlFor="rd-path">{t.path}</label>
             <div className="input-row">
               <input
                 id="rd-path"
                 value={rustdeskPath}
                 onChange={(e) => setRustdeskPath(e.target.value)}
-                placeholder="Path to rustdesk executable..."
+                placeholder={t.pathPlaceholder}
               />
               <button className="btn" onClick={handleDetect}>
-                Auto-detect
+                {t.autoDetect}
               </button>
               <button className="btn btn-primary" onClick={handleSavePath}>
-                Save
+                {t.save}
               </button>
             </div>
           </div>
         </div>
 
         <div className="settings-section">
-          <h3>Updates</h3>
+          <h3>{t.updates}</h3>
           <div className="form-group">
             <label className="checkbox-label">
               <input
@@ -122,16 +131,32 @@ export default function Settings({ onClose }: Props) {
                 checked={autoUpdate}
                 onChange={(e) => handleAutoUpdateChange(e.target.checked)}
               />
-              Automatically check for updates
+              {t.autoCheckUpdates}
             </label>
           </div>
         </div>
 
         <div className="settings-section">
-          <h3>Change Master Password</h3>
+          <h3>{t.language}</h3>
+          <div className="form-group">
+            <select
+              value={locale}
+              onChange={(e) => onLocaleChange(e.target.value as Locale)}
+            >
+              {LANGUAGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>{t.changeMasterPassword}</h3>
           <form onSubmit={handleChangePassword}>
             <div className="form-group">
-              <label htmlFor="old-pw">Current Password</label>
+              <label htmlFor="old-pw">{t.currentPassword}</label>
               <input
                 id="old-pw"
                 type="password"
@@ -141,7 +166,7 @@ export default function Settings({ onClose }: Props) {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="new-pw">New Password</label>
+              <label htmlFor="new-pw">{t.newPassword}</label>
               <input
                 id="new-pw"
                 type="password"
@@ -151,7 +176,7 @@ export default function Settings({ onClose }: Props) {
               />
             </div>
             <div className="form-group">
-              <label htmlFor="confirm-pw">Confirm New Password</label>
+              <label htmlFor="confirm-pw">{t.confirmNewPassword}</label>
               <input
                 id="confirm-pw"
                 type="password"
@@ -161,7 +186,7 @@ export default function Settings({ onClose }: Props) {
               />
             </div>
             <button type="submit" className="btn btn-primary">
-              Change Password
+              {t.changePassword}
             </button>
           </form>
         </div>

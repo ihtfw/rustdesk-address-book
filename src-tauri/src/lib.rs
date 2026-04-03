@@ -38,6 +38,8 @@ pub fn run() {
             commands::detect_rustdesk,
             commands::get_auto_update,
             commands::set_auto_update,
+            commands::get_language,
+            commands::set_language,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -376,3 +376,16 @@ pub fn set_auto_update(enabled: bool) -> Result<(), AppError> {
     config.auto_update = enabled;
     storage::save_config(&config)
 }
+
+#[tauri::command]
+pub fn get_language() -> Result<String, AppError> {
+    let config = storage::load_config()?;
+    Ok(config.language)
+}
+
+#[tauri::command]
+pub fn set_language(lang: String) -> Result<(), AppError> {
+    let mut config = storage::load_config()?;
+    config.language = lang;
+    storage::save_config(&config)
+}
