@@ -92,6 +92,25 @@ export default function MainPage({
     return () => document.removeEventListener("click", handler);
   }, []);
 
+  // Adjust context menu position if it overflows the viewport
+  useEffect(() => {
+    if (!contextMenu || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    let { x, y } = contextMenu;
+    let adjusted = false;
+    if (rect.bottom > window.innerHeight) {
+      y = Math.max(0, y - rect.height);
+      adjusted = true;
+    }
+    if (rect.right > window.innerWidth) {
+      x = Math.max(0, x - rect.width);
+      adjusted = true;
+    }
+    if (adjusted) {
+      setContextMenu((prev) => prev && { ...prev, x, y });
+    }
+  }, [contextMenu]);
+
   // Load subscriptions on mount
   useEffect(() => {
     api.getSubscriptions().then(setSubscriptions).catch(() => {});
