@@ -39,6 +39,7 @@ export default function ConnectionForm({
       setRustdeskId("");
       setPassword("");
     }
+    setShowPassword(false);
   }, [connection]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -91,10 +92,11 @@ export default function ConnectionForm({
             />
             <button
               type="button"
-              className="btn btn-small"
+              className="btn btn-small btn-toggle-pw"
               onClick={() => setShowPassword(!showPassword)}
+              tabIndex={-1}
             >
-              {showPassword ? t.hide : t.show}
+              {showPassword ? "🙈" : "👁️"}
             </button>
           </div>
         </div>
