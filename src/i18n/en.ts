@@ -40,6 +40,9 @@ const en: Translations = {
   connect: "▶ Connect",
   edit: "Edit",
   delete_: "Delete",
+  copyId: "Copy ID",
+  copyInfo: "Copy Info",
+  copied: "Copied!",
 
   newFolder: "📁 New Folder",
   newConnection: "🖥️ New Connection",

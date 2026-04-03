@@ -46,6 +46,9 @@ export interface Translations {
   connect: string;
   edit: string;
   delete_: string;
+  copyId: string;
+  copyInfo: string;
+  copied: string;
 
   // Context menu
   newFolder: string;

@@ -40,6 +40,7 @@ export default function MainPage({
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [error, setError] = useState("");
+  const [toast, setToast] = useState("");
   const [folderSearch, setFolderSearch] = useState("");
   const [connectionSearch, setConnectionSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -296,11 +297,34 @@ export default function MainPage({
     // Show selected item info
     if (selected?.kind === "connection") {
       const c = selected.data;
+      const copyToClipboard = async (text: string) => {
+        await navigator.clipboard.writeText(text);
+        setToast(t.copied);
+        setTimeout(() => setToast(""), 2000);
+      };
       return (
         <div className="detail-panel">
-          <h2>🖥️ {c.name}</h2>
+          <h2>
+            🖥️ {c.name}
+            <button
+              className="btn btn-small btn-copy"
+              onClick={() =>
+                copyToClipboard(`${c.name}\n${c.rustdesk_id}\n${c.password}`)
+              }
+              title={t.copyInfo}
+            >
+              📋
+            </button>
+          </h2>
           <div className="detail-field">
             <strong>{t.rustdeskId}</strong> {c.rustdesk_id}
+            <button
+              className="btn btn-small btn-copy"
+              onClick={() => copyToClipboard(c.rustdesk_id)}
+              title={t.copyId}
+            >
+              📋
+            </button>
           </div>
           <div className="detail-field">
             <strong>{t.password}</strong> {c.password ? "••••••" : "(none)"}
@@ -561,6 +585,9 @@ export default function MainPage({
           onLocaleChange={onLocaleChange}
         />
       )}
+
+      {/* Toast */}
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }
