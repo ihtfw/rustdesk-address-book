@@ -536,7 +536,11 @@ export default function MainPage({
       setToast(t.syncSuccess);
       setTimeout(() => setToast(""), 3000);
     } catch (err: unknown) {
-      setSyncErrors((prev) => new Map(prev).set(subscriptionId, String(err)));
+      const msg = String(err);
+      const display = msg.includes("Please update the application")
+        ? t.syncVersionError
+        : msg;
+      setSyncErrors((prev) => new Map(prev).set(subscriptionId, display));
     } finally {
       setSyncingIds((prev) => {
         const next = new Set(prev);

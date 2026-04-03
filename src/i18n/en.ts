@@ -120,6 +120,7 @@ const en: Translations = {
   syncing: "Syncing...",
   syncSuccess: "Synced successfully!",
   syncError: "Sync failed",
+  syncVersionError: "Sync format is newer than supported. Please update the application.",
   lastSynced: "Last synced",
   never: "never",
   removeSubscriptionConfirm: "Remove this subscription and its folder?",

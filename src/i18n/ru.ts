@@ -121,6 +121,7 @@ const ru: Translations = {
   syncing: "Синхронизация...",
   syncSuccess: "Синхронизация успешна!",
   syncError: "Ошибка синхронизации",
+  syncVersionError: "Формат синхронизации новее поддерживаемого. Пожалуйста, обновите приложение.",
   lastSynced: "Последняя синхронизация",
   never: "никогда",
   removeSubscriptionConfirm: "Удалить подписку и её папку?",

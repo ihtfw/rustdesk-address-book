@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::crypto;
 use crate::errors::AppError;
-use crate::models::{AddressBook, Connection, Folder, Subscription, SyncAction, SyncEvent, SyncPullResponse, SyncPushResponse, TreeNode};
+use crate::models::{AddressBook, Connection, Folder, Subscription, SyncAction, SyncEvent, SyncPullResponse, SyncPushResponse, TreeNode, SYNC_FORMAT_VERSION};
 use crate::rustdesk;
 use crate::storage;
 
@@ -724,6 +724,13 @@ pub async fn sync_pull(
             let event: SyncEvent = serde_json::from_slice(&plaintext)
                 .map_err(|e| AppError::General(format!("Invalid sync event: {}", e)))?;
 
+            if event.version > SYNC_FORMAT_VERSION {
+                return Err(AppError::General(format!(
+                    "Sync event format version {} is newer than supported ({}). Please update the application.",
+                    event.version, SYNC_FORMAT_VERSION
+                )));
+            }
+
             book.apply_sync_event(folder_id, &event);
 
             if entry.id > new_last_id {
@@ -801,6 +808,7 @@ pub async fn sync_push(
             };
             if modified_ids.contains(&node_id) {
                 ev.push(SyncEvent {
+                    version: SYNC_FORMAT_VERSION,
                     action: SyncAction::Upsert,
                     node: Some(node.clone()),
                     parent_id: Some(*parent_id),
@@ -811,6 +819,7 @@ pub async fn sync_push(
 
         for del_id in &deleted_ids {
             ev.push(SyncEvent {
+                version: SYNC_FORMAT_VERSION,
                 action: SyncAction::Delete,
                 node: None,
                 parent_id: None,

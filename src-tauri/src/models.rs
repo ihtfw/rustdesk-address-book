@@ -63,9 +63,17 @@ pub struct Subscription {
     pub deleted_ids: HashSet<Uuid>,
 }
 
+/// Current sync event format version. Bump when making breaking changes.
+pub const SYNC_FORMAT_VERSION: u32 = 1;
+
+fn default_sync_version() -> u32 { 1 }
+
 /// A single change event sent to/received from the sync server.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncEvent {
+    /// Format version — reject events with a higher version.
+    #[serde(default = "default_sync_version")]
+    pub version: u32,
     pub action: SyncAction,
     /// For upsert: the full node (Connection or Folder without children).
     pub node: Option<TreeNode>,
