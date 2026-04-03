@@ -47,6 +47,7 @@ export default function MainPage({
   const [folderSearch, setFolderSearch] = useState("");
   const [connectionSearch, setConnectionSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const [saving, setSaving] = useState(false);
   const t = useI18n();
 
   // Export/Import state
@@ -64,6 +65,36 @@ export default function MainPage({
   const subscriptionFolderIds = useMemo(
     () => new Set(subscriptions.map((s) => s.folder_id)),
     [subscriptions],
+  );
+
+  // Find which subscription a node belongs to (if any)
+  const findSubscriptionForNode = useCallback(
+    (nodeId: string): Subscription | null => {
+      const isInside = (node: TreeNode, id: string): boolean => {
+        if (node.id === id) return true;
+        if (node.type === "Folder")
+          return node.children.some((c) => isInside(c, id));
+        return false;
+      };
+      for (const sub of subscriptions) {
+        const folder = root.children.find((c) => c.id === sub.folder_id);
+        if (folder && isInside(folder, nodeId)) return sub;
+      }
+      return null;
+    },
+    [subscriptions, root],
+  );
+
+  // Sync a subscription silently (no error toast, used for auto-sync after mutations)
+  const syncQuiet = useCallback(
+    async (subId: string) => {
+      try {
+        await api.syncSubscription(subId);
+      } catch {
+        // auto-sync errors are silent; user can retry manually
+      }
+    },
+    [],
   );
 
   const syncErrorFolderIds = useMemo(() => {
@@ -224,7 +255,11 @@ export default function MainPage({
   ) => {
     console.log("handleDrop:", { nodeId, newParentId, position });
     try {
+      const sub =
+        findSubscriptionForNode(nodeId) ||
+        findSubscriptionForNode(newParentId);
       await api.moveNode(nodeId, newParentId, position);
+      if (sub) await syncQuiet(sub.id);
       await refreshTree();
     } catch (err: unknown) {
       console.error("moveNode error:", err);
@@ -238,9 +273,13 @@ export default function MainPage({
     name: string;
     description: string;
   }) => {
+    if (saving) return;
+    setSaving(true);
     try {
       setError("");
+      let subToSync: Subscription | null = null;
       if (editMode?.kind === "new-folder") {
+        subToSync = findSubscriptionForNode(editMode.parentId);
         const folder = await api.addFolder(
           editMode.parentId,
           data.name,
@@ -248,6 +287,7 @@ export default function MainPage({
         );
         setSelected({ kind: "folder", data: folder });
       } else if (editMode?.kind === "edit-folder") {
+        subToSync = findSubscriptionForNode(editMode.folder.id);
         const folder = await api.updateFolder(
           editMode.folder.id,
           data.name,
@@ -255,10 +295,13 @@ export default function MainPage({
         );
         setSelected({ kind: "folder", data: folder });
       }
+      if (subToSync) await syncQuiet(subToSync.id);
       await refreshTree();
       setEditMode(null);
     } catch (err: unknown) {
       setError(String(err));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -268,9 +311,13 @@ export default function MainPage({
     rustdesk_id: string;
     password: string;
   }) => {
+    if (saving) return;
+    setSaving(true);
     try {
       setError("");
+      let subToSync: Subscription | null = null;
       if (editMode?.kind === "new-connection") {
+        subToSync = findSubscriptionForNode(editMode.parentId);
         const conn = await api.addConnection(
           editMode.parentId,
           data.name,
@@ -280,6 +327,7 @@ export default function MainPage({
         );
         setSelected({ kind: "connection", data: conn });
       } else if (editMode?.kind === "edit-connection") {
+        subToSync = findSubscriptionForNode(editMode.connection.id);
         const conn = await api.updateConnection(
           editMode.connection.id,
           data.name,
@@ -289,10 +337,13 @@ export default function MainPage({
         );
         setSelected({ kind: "connection", data: conn });
       }
+      if (subToSync) await syncQuiet(subToSync.id);
       await refreshTree();
       setEditMode(null);
     } catch (err: unknown) {
       setError(String(err));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -321,7 +372,9 @@ export default function MainPage({
     try {
       setError("");
       const info = getNodeInfo(id);
+      const subToSync = findSubscriptionForNode(id);
       await api.deleteNode(id);
+      if (subToSync) await syncQuiet(subToSync.id);
       await refreshTree();
       setSelected(null);
       setEditMode(null);
@@ -513,6 +566,7 @@ export default function MainPage({
         <FolderForm
           onSave={handleSaveFolder}
           onCancel={() => setEditMode(null)}
+          disabled={saving}
         />
       );
     }
@@ -523,6 +577,7 @@ export default function MainPage({
           onSave={handleSaveFolder}
           onCancel={() => setEditMode(null)}
           isRoot={editMode.folder.id === root.id}
+          disabled={saving}
         />
       );
     }
@@ -531,6 +586,7 @@ export default function MainPage({
         <ConnectionForm
           onSave={handleSaveConnection}
           onCancel={() => setEditMode(null)}
+          disabled={saving}
         />
       );
     }
@@ -541,6 +597,7 @@ export default function MainPage({
           onSave={handleSaveConnection}
           onCancel={() => setEditMode(null)}
           onConnect={() => handleConnect(editMode.connection.id)}
+          disabled={saving}
         />
       );
     }

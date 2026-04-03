@@ -7,6 +7,7 @@ interface Props {
   onSave: (data: { name: string; description: string }) => void;
   onCancel: () => void;
   isRoot?: boolean;
+  disabled?: boolean;
 }
 
 export default function FolderForm({
@@ -14,6 +15,7 @@ export default function FolderForm({
   onSave,
   onCancel,
   isRoot,
+  disabled,
 }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -64,7 +66,7 @@ export default function FolderForm({
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary btn-action">
+          <button type="submit" className="btn btn-primary btn-action" disabled={disabled}>
             💾 {isEdit ? t.save : t.addFolder}
           </button>
           <button type="button" className="btn btn-action" onClick={onCancel}>
