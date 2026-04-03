@@ -112,9 +112,19 @@ export default function MainPage({ initialRoot, onLock }: Props) {
     try {
       setError("");
       if (editMode?.kind === "new-folder") {
-        await api.addFolder(editMode.parentId, data.name, data.description);
+        const folder = await api.addFolder(
+          editMode.parentId,
+          data.name,
+          data.description,
+        );
+        setSelected({ kind: "folder", data: folder });
       } else if (editMode?.kind === "edit-folder") {
-        await api.updateFolder(editMode.folder.id, data.name, data.description);
+        const folder = await api.updateFolder(
+          editMode.folder.id,
+          data.name,
+          data.description,
+        );
+        setSelected({ kind: "folder", data: folder });
       }
       await refreshTree();
       setEditMode(null);
@@ -132,21 +142,23 @@ export default function MainPage({ initialRoot, onLock }: Props) {
     try {
       setError("");
       if (editMode?.kind === "new-connection") {
-        await api.addConnection(
+        const conn = await api.addConnection(
           editMode.parentId,
           data.name,
           data.description,
           data.rustdesk_id,
           data.password,
         );
+        setSelected({ kind: "connection", data: conn });
       } else if (editMode?.kind === "edit-connection") {
-        await api.updateConnection(
+        const conn = await api.updateConnection(
           editMode.connection.id,
           data.name,
           data.description,
           data.rustdesk_id,
           data.password,
         );
+        setSelected({ kind: "connection", data: conn });
       }
       await refreshTree();
       setEditMode(null);

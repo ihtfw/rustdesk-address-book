@@ -121,10 +121,12 @@ pub fn get_tree(state: tauri::State<'_, AppState>) -> Result<Folder, AppError> {
 #[tauri::command]
 pub fn add_folder(
     state: tauri::State<'_, AppState>,
-    parent_id: Uuid,
+    parent_id: String,
     name: String,
     description: String,
 ) -> Result<Folder, AppError> {
+    let parent_uuid = Uuid::parse_str(&parent_id)
+        .map_err(|e| AppError::General(format!("Invalid parent ID: {}", e)))?;
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
 
@@ -136,7 +138,7 @@ pub fn add_folder(
     };
 
     let parent = book
-        .find_folder_mut(parent_id)
+        .find_folder_mut(parent_uuid)
         .ok_or_else(|| AppError::General("Parent folder not found".to_string()))?;
     let result = new_folder.clone();
     parent.children.push(TreeNode::Folder(new_folder));
@@ -149,12 +151,14 @@ pub fn add_folder(
 #[tauri::command]
 pub fn add_connection(
     state: tauri::State<'_, AppState>,
-    parent_id: Uuid,
+    parent_id: String,
     name: String,
     description: String,
     rustdesk_id: String,
     password: String,
 ) -> Result<Connection, AppError> {
+    let parent_uuid = Uuid::parse_str(&parent_id)
+        .map_err(|e| AppError::General(format!("Invalid parent ID: {}", e)))?;
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
 
@@ -170,7 +174,7 @@ pub fn add_connection(
     };
 
     let parent = book
-        .find_folder_mut(parent_id)
+        .find_folder_mut(parent_uuid)
         .ok_or_else(|| AppError::General("Parent folder not found".to_string()))?;
     let result = new_conn.clone();
     parent.children.push(TreeNode::Connection(new_conn));
@@ -183,15 +187,17 @@ pub fn add_connection(
 #[tauri::command]
 pub fn update_folder(
     state: tauri::State<'_, AppState>,
-    id: Uuid,
+    id: String,
     name: String,
     description: String,
 ) -> Result<Folder, AppError> {
+    let uuid = Uuid::parse_str(&id)
+        .map_err(|e| AppError::General(format!("Invalid folder ID: {}", e)))?;
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
 
     let folder = book
-        .find_folder_mut(id)
+        .find_folder_mut(uuid)
         .ok_or_else(|| AppError::General("Folder not found".to_string()))?;
     folder.name = name;
     folder.description = description;
@@ -221,16 +227,18 @@ fn find_connection_mut(folder: &mut Folder, target_id: Uuid) -> Option<&mut Conn
 #[tauri::command]
 pub fn update_connection(
     state: tauri::State<'_, AppState>,
-    id: Uuid,
+    id: String,
     name: String,
     description: String,
     rustdesk_id: String,
     password: String,
 ) -> Result<Connection, AppError> {
+    let uuid = Uuid::parse_str(&id)
+        .map_err(|e| AppError::General(format!("Invalid connection ID: {}", e)))?;
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
 
-    let conn = find_connection_mut(&mut book.root, id)
+    let conn = find_connection_mut(&mut book.root, uuid)
         .ok_or_else(|| AppError::General("Connection not found".to_string()))?;
     conn.name = name;
     conn.description = description;
@@ -245,11 +253,13 @@ pub fn update_connection(
 }
 
 #[tauri::command]
-pub fn delete_node(state: tauri::State<'_, AppState>, id: Uuid) -> Result<(), AppError> {
+pub fn delete_node(state: tauri::State<'_, AppState>, id: String) -> Result<(), AppError> {
+    let uuid = Uuid::parse_str(&id)
+        .map_err(|e| AppError::General(format!("Invalid node ID: {}", e)))?;
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
 
-    if !book.delete_node(id) {
+    if !book.delete_node(uuid) {
         return Err(AppError::General("Node not found".to_string()));
     }
 
