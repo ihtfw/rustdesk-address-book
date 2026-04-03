@@ -60,6 +60,7 @@ export default function ConnectionForm({
     <div className="detail-panel">
       <h2>{isEdit ? t.editConnectionTitle : t.newConnectionTitle}</h2>
       <form onSubmit={handleSubmit}>
+        <fieldset disabled={disabled} style={{ border: "none", padding: 0, margin: 0 }}>
         <div className="form-group">
           <label htmlFor="conn-name">{t.name}</label>
           <input
@@ -115,7 +116,7 @@ export default function ConnectionForm({
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary btn-action" disabled={disabled}>
+          <button type="submit" className="btn btn-primary btn-action">
             💾 {isEdit ? t.save : t.addConnection}
           </button>
           <button type="button" className="btn btn-action" onClick={onCancel}>
@@ -131,6 +132,7 @@ export default function ConnectionForm({
             </button>
           )}
         </div>
+        </fieldset>
       </form>
     </div>
   );
