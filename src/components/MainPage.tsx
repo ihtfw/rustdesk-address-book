@@ -111,6 +111,15 @@ export default function MainPage({
         if (msg.includes("403") || msg.includes("401")) {
           const display = msg.includes("403") ? t.syncReadOnly : msg;
           setSyncErrors((prev) => new Map(prev).set(subId, display));
+          // 401 clears data on backend — reload tree + subscriptions
+          if (msg.includes("401")) {
+            try {
+              const tree = await api.getTree();
+              setRoot(tree);
+              const subs = await api.getSubscriptions();
+              setSubscriptions(subs);
+            } catch { /* ignore */ }
+          }
         }
         // Other errors (network, etc.) are silent; user can retry manually
       }
@@ -566,6 +575,8 @@ export default function MainPage({
           ? t.syncReadOnly
           : msg;
       setSyncErrors((prev) => new Map(prev).set(subscriptionId, display));
+      // 401 clears data on backend — refresh tree to reflect it
+      if (msg.includes("401")) await refreshTree();
     } finally {
       setSyncingIds((prev) => {
         const next = new Set(prev);
