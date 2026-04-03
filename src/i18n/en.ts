@@ -105,6 +105,25 @@ const en: Translations = {
   noNodesSelected: "No items selected for export",
   saveExportFile: "Save Export File",
   selectImportFile: "Select Import File",
+
+  subscriptions: "Subscriptions",
+  addSubscription: "+ Add Subscription",
+  editSubscription: "Edit Subscription",
+  removeSubscription: "Remove",
+  subscriptionName: "Name",
+  subscriptionUrl: "URL",
+  subscriptionKey: "Master Key",
+  subscriptionNamePlaceholder: "e.g. Work team",
+  subscriptionUrlPlaceholder: "https://server/sync/guid",
+  subscriptionKeyPlaceholder: "Shared encryption key",
+  syncNow: "🔄 Sync",
+  syncing: "Syncing...",
+  syncSuccess: "Synced successfully!",
+  syncError: "Sync failed",
+  lastSynced: "Last synced",
+  never: "never",
+  removeSubscriptionConfirm: "Remove this subscription and its folder?",
+  noSubscriptions: "No subscriptions yet.",
 };
 
 export default en;

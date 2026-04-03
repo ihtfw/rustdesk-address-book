@@ -106,6 +106,25 @@ const ru: Translations = {
   noNodesSelected: "Не выбрано ни одного элемента для экспорта",
   saveExportFile: "Сохранить файл экспорта",
   selectImportFile: "Выберите файл для импорта",
+
+  subscriptions: "Подписки",
+  addSubscription: "+ Добавить подписку",
+  editSubscription: "Редактировать подписку",
+  removeSubscription: "Удалить",
+  subscriptionName: "Название",
+  subscriptionUrl: "URL",
+  subscriptionKey: "Мастер-ключ",
+  subscriptionNamePlaceholder: "напр. Команда",
+  subscriptionUrlPlaceholder: "https://server/sync/guid",
+  subscriptionKeyPlaceholder: "Общий ключ шифрования",
+  syncNow: "🔄 Синхр.",
+  syncing: "Синхронизация...",
+  syncSuccess: "Синхронизация успешна!",
+  syncError: "Ошибка синхронизации",
+  lastSynced: "Последняя синхронизация",
+  never: "никогда",
+  removeSubscriptionConfirm: "Удалить подписку и её папку?",
+  noSubscriptions: "Подписок пока нет.",
 };
 
 export default ru;

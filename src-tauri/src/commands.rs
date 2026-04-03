@@ -6,9 +6,11 @@ use uuid::Uuid;
 
 use crate::crypto;
 use crate::errors::AppError;
-use crate::models::{AddressBook, Connection, Folder, TreeNode};
+use crate::models::{AddressBook, Connection, Folder, Subscription, SyncAction, SyncEvent, SyncPullResponse, SyncPushResponse, TreeNode};
 use crate::rustdesk;
 use crate::storage;
+
+use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
 pub struct DeletedNode {
     pub node: TreeNode,
@@ -153,6 +155,8 @@ pub fn add_folder(
     let result = new_folder.clone();
     parent.children.push(TreeNode::Folder(new_folder));
 
+    book.mark_node_modified(result.id);
+
     drop(book_lock);
     get_book_and_save(&state)?;
     Ok(result)
@@ -189,6 +193,8 @@ pub fn add_connection(
     let result = new_conn.clone();
     parent.children.push(TreeNode::Connection(new_conn));
 
+    book.mark_node_modified(result.id);
+
     drop(book_lock);
     get_book_and_save(&state)?;
     Ok(result)
@@ -212,6 +218,8 @@ pub fn update_folder(
     folder.name = name;
     folder.description = description;
     let result = folder.clone();
+
+    book.mark_node_modified(uuid);
 
     drop(book_lock);
     get_book_and_save(&state)?;
@@ -257,6 +265,8 @@ pub fn update_connection(
     conn.updated_at = Utc::now();
     let result = conn.clone();
 
+    book.mark_node_modified(uuid);
+
     drop(book_lock);
     get_book_and_save(&state)?;
     Ok(result)
@@ -268,6 +278,9 @@ pub fn delete_node(state: tauri::State<'_, AppState>, id: String) -> Result<(), 
         .map_err(|e| AppError::General(format!("Invalid node ID: {}", e)))?;
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+
+    // Mark as deleted in subscription before extracting
+    book.mark_node_deleted(uuid);
 
     let (node, parent_id, position) = book
         .extract_node_with_info(uuid)
@@ -324,6 +337,8 @@ pub fn move_node(
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
     book.move_node(node_uuid, parent_uuid, position)?;
+
+    book.mark_node_modified(node_uuid);
 
     drop(book_lock);
     get_book_and_save(&state)?;
@@ -522,4 +537,340 @@ pub fn try_import(
         Ok(_) => Ok(true),  // Current password works
         Err(_) => Ok(false), // Need a different password
     }
+}
+
+// ─── Subscription CRUD Commands ──────────────────────────────────
+
+#[tauri::command]
+pub fn get_subscriptions(
+    state: tauri::State<'_, AppState>,
+) -> Result<Vec<Subscription>, AppError> {
+    let book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_ref().ok_or(AppError::Locked)?;
+    Ok(book.subscriptions.clone())
+}
+
+#[tauri::command]
+pub fn add_subscription(
+    state: tauri::State<'_, AppState>,
+    name: String,
+    url: String,
+    master_key: String,
+) -> Result<Subscription, AppError> {
+    let mut book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+
+    let folder_id = Uuid::new_v4();
+    let sub = Subscription {
+        id: Uuid::new_v4(),
+        name: name.clone(),
+        url,
+        master_key,
+        folder_id,
+        last_id: 0,
+        last_synced: None,
+        modified_ids: HashSet::new(),
+        deleted_ids: HashSet::new(),
+    };
+
+    // Create the corresponding top-level folder
+    let folder = Folder {
+        id: folder_id,
+        name,
+        description: String::new(),
+        children: Vec::new(),
+    };
+    book.root.children.push(TreeNode::Folder(folder));
+    book.subscriptions.push(sub.clone());
+
+    drop(book_lock);
+    get_book_and_save(&state)?;
+    Ok(sub)
+}
+
+#[tauri::command]
+pub fn update_subscription(
+    state: tauri::State<'_, AppState>,
+    id: String,
+    name: String,
+    url: String,
+    master_key: String,
+) -> Result<Subscription, AppError> {
+    let sub_uuid = Uuid::parse_str(&id)
+        .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
+    let mut book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+
+    let sub = book.subscriptions.iter_mut().find(|s| s.id == sub_uuid)
+        .ok_or_else(|| AppError::General("Subscription not found".to_string()))?;
+    sub.name = name.clone();
+    sub.url = url;
+    sub.master_key = master_key;
+    let result = sub.clone();
+
+    // Also update the folder name
+    if let Some(folder) = book.find_folder_mut(result.folder_id) {
+        folder.name = name;
+    }
+
+    drop(book_lock);
+    get_book_and_save(&state)?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn remove_subscription(
+    state: tauri::State<'_, AppState>,
+    id: String,
+) -> Result<(), AppError> {
+    let sub_uuid = Uuid::parse_str(&id)
+        .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
+    let mut book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+
+    // Find and remove the subscription
+    let folder_id = {
+        let idx = book.subscriptions.iter().position(|s| s.id == sub_uuid)
+            .ok_or_else(|| AppError::General("Subscription not found".to_string()))?;
+        let sub = book.subscriptions.remove(idx);
+        sub.folder_id
+    };
+
+    // Remove the corresponding folder from root.children
+    book.root.children.retain(|child| {
+        match child {
+            TreeNode::Folder(f) => f.id != folder_id,
+            _ => true,
+        }
+    });
+
+    drop(book_lock);
+    get_book_and_save(&state)?;
+    Ok(())
+}
+
+// ─── Sync Commands ──────────────────────────────────────────────
+
+/// Helper: collect all nodes inside a folder as a flat list of (node, parent_id) pairs.
+fn collect_nodes_flat(folder: &Folder) -> Vec<(TreeNode, Uuid)> {
+    let mut result = Vec::new();
+    for child in &folder.children {
+        match child {
+            TreeNode::Folder(f) => {
+                // Add the folder itself (without children, for the event)
+                let folder_without_children = TreeNode::Folder(Folder {
+                    id: f.id,
+                    name: f.name.clone(),
+                    description: f.description.clone(),
+                    children: Vec::new(),
+                });
+                result.push((folder_without_children, folder.id));
+                // Recurse into children
+                result.extend(collect_nodes_flat(f));
+            }
+            TreeNode::Connection(c) => {
+                result.push((TreeNode::Connection(c.clone()), folder.id));
+            }
+        }
+    }
+    result
+}
+
+#[tauri::command]
+pub async fn sync_pull(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+) -> Result<Folder, AppError> {
+    let sub_uuid = Uuid::parse_str(&subscription_id)
+        .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
+
+    // Get subscription info
+    let (url, master_key, folder_id, last_id) = {
+        let book_lock = state.address_book.lock().unwrap();
+        let book = book_lock.as_ref().ok_or(AppError::Locked)?;
+        let sub = book.subscriptions.iter().find(|s| s.id == sub_uuid)
+            .ok_or_else(|| AppError::General("Subscription not found".to_string()))?;
+        (sub.url.clone(), sub.master_key.clone(), sub.folder_id, sub.last_id)
+    };
+
+    // GET changes from server
+    let pull_url = format!("{}?after={}", url, last_id);
+    let client = reqwest::Client::new();
+    let response = client.get(&pull_url)
+        .send()
+        .await
+        .map_err(|e| AppError::General(format!("Sync pull failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(AppError::General(format!("Server returned {}", response.status())));
+    }
+
+    let pull_response: SyncPullResponse = response.json()
+        .await
+        .map_err(|e| AppError::General(format!("Invalid server response: {}", e)))?;
+
+    // Apply each change
+    let mut new_last_id = last_id;
+    {
+        let mut book_lock = state.address_book.lock().unwrap();
+        let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+
+        for entry in &pull_response.changes {
+            // Decode and decrypt the change
+            let blob = BASE64.decode(&entry.data)
+                .map_err(|e| AppError::General(format!("Invalid base64: {}", e)))?;
+
+            let plaintext = crypto::decrypt(&blob, &master_key)?;
+            let event: SyncEvent = serde_json::from_slice(&plaintext)
+                .map_err(|e| AppError::General(format!("Invalid sync event: {}", e)))?;
+
+            book.apply_sync_event(folder_id, &event);
+
+            if entry.id > new_last_id {
+                new_last_id = entry.id;
+            }
+        }
+
+        // Update subscription cursor and last_synced
+        if let Some(sub) = book.subscriptions.iter_mut().find(|s| s.id == sub_uuid) {
+            sub.last_id = new_last_id;
+            sub.last_synced = Some(Utc::now());
+        }
+    }
+
+    get_book_and_save(&state)?;
+
+    // Return the updated folder
+    let book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_ref().ok_or(AppError::Locked)?;
+    let folder = book.root.children.iter()
+        .find_map(|c| match c {
+            TreeNode::Folder(f) if f.id == folder_id => Some(f.clone()),
+            _ => None,
+        })
+        .ok_or_else(|| AppError::General("Subscription folder not found".to_string()))?;
+    Ok(folder)
+}
+
+#[tauri::command]
+pub async fn sync_push(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+) -> Result<(), AppError> {
+    let sub_uuid = Uuid::parse_str(&subscription_id)
+        .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
+
+    // Collect data needed for push
+    let (url, master_key, modified_ids, deleted_ids, folder_id) = {
+        let book_lock = state.address_book.lock().unwrap();
+        let book = book_lock.as_ref().ok_or(AppError::Locked)?;
+        let sub = book.subscriptions.iter().find(|s| s.id == sub_uuid)
+            .ok_or_else(|| AppError::General("Subscription not found".to_string()))?;
+        (
+            sub.url.clone(),
+            sub.master_key.clone(),
+            sub.modified_ids.clone(),
+            sub.deleted_ids.clone(),
+            sub.folder_id,
+        )
+    };
+
+    let client = reqwest::Client::new();
+    let mut new_last_id = 0u64;
+
+    // Collect events to send (outside the lock)
+    let events: Vec<SyncEvent>;
+    {
+        let book_lock = state.address_book.lock().unwrap();
+        let book = book_lock.as_ref().ok_or(AppError::Locked)?;
+
+        let sub_folder = book.root.children.iter()
+            .find_map(|c| match c {
+                TreeNode::Folder(f) if f.id == folder_id => Some(f),
+                _ => None,
+            })
+            .ok_or_else(|| AppError::General("Subscription folder not found".to_string()))?;
+
+        let all_nodes = collect_nodes_flat(sub_folder);
+        let mut ev = Vec::new();
+
+        for (node, parent_id) in &all_nodes {
+            let node_id = match node {
+                TreeNode::Folder(f) => f.id,
+                TreeNode::Connection(c) => c.id,
+            };
+            if modified_ids.contains(&node_id) {
+                ev.push(SyncEvent {
+                    action: SyncAction::Upsert,
+                    node: Some(node.clone()),
+                    parent_id: Some(*parent_id),
+                    node_id: None,
+                });
+            }
+        }
+
+        for del_id in &deleted_ids {
+            ev.push(SyncEvent {
+                action: SyncAction::Delete,
+                node: None,
+                parent_id: None,
+                node_id: Some(*del_id),
+            });
+        }
+
+        events = ev;
+    }
+
+    // Send each event to server (outside the lock)
+    for event in &events {
+        let plaintext = serde_json::to_vec(event)
+            .map_err(|e| AppError::General(format!("Serialization failed: {}", e)))?;
+        let encrypted = crypto::encrypt(&plaintext, &master_key)?;
+        let encoded = BASE64.encode(&encrypted);
+
+        let response = client.post(&url)
+            .json(&serde_json::json!({ "data": encoded }))
+            .send()
+            .await
+            .map_err(|e| AppError::General(format!("Sync push failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            return Err(AppError::General(format!("Server returned {}", response.status())));
+        }
+
+        let push_response: SyncPushResponse = response.json()
+            .await
+            .map_err(|e| AppError::General(format!("Invalid server response: {}", e)))?;
+        if push_response.id > new_last_id {
+            new_last_id = push_response.id;
+        }
+    }
+
+    // Clear dirty state and update cursor
+    {
+        let mut book_lock = state.address_book.lock().unwrap();
+        let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+        if let Some(sub) = book.subscriptions.iter_mut().find(|s| s.id == sub_uuid) {
+            sub.modified_ids.clear();
+            sub.deleted_ids.clear();
+            if new_last_id > sub.last_id {
+                sub.last_id = new_last_id;
+            }
+            sub.last_synced = Some(Utc::now());
+        }
+    }
+
+    get_book_and_save(&state)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn sync_subscription(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+) -> Result<Folder, AppError> {
+    // Pull first, then push
+    let folder = sync_pull(state.clone(), subscription_id.clone()).await?;
+    sync_push(state, subscription_id).await?;
+    Ok(folder)
 }

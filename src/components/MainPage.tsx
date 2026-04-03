@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import type { Folder, TreeNode, SelectedItem, Connection } from "../types";
+import type { Folder, TreeNode, SelectedItem, Connection, Subscription } from "../types";
 import * as api from "../api";
 import { useI18n, type Locale } from "../i18n";
 import { save, open } from "@tauri-apps/plugin-dialog";
@@ -57,11 +57,29 @@ export default function MainPage({
   const [showImportPassword, setShowImportPassword] = useState(false);
   const [importPassword, setImportPassword] = useState("");
   const [importFilePath, setImportFilePath] = useState("");
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
+  const [syncErrors, setSyncErrors] = useState<Map<string, string>>(new Map());
+
+  const subscriptionFolderIds = useMemo(
+    () => new Set(subscriptions.map((s) => s.folder_id)),
+    [subscriptions],
+  );
+
+  const syncErrorFolderIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const sub of subscriptions) {
+      if (syncErrors.has(sub.id)) ids.add(sub.folder_id);
+    }
+    return ids;
+  }, [subscriptions, syncErrors]);
 
   const refreshTree = useCallback(async () => {
     try {
       const tree = await api.getTree();
       setRoot(tree);
+      const subs = await api.getSubscriptions();
+      setSubscriptions(subs);
     } catch (err: unknown) {
       setError(String(err));
     }
@@ -72,6 +90,11 @@ export default function MainPage({
     const handler = () => setContextMenu(null);
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
+  }, []);
+
+  // Load subscriptions on mount
+  useEffect(() => {
+    api.getSubscriptions().then(setSubscriptions).catch(() => {});
   }, []);
 
   // ── Search / Filter ──
@@ -426,6 +449,43 @@ export default function MainPage({
     }
   };
 
+  // ── Sync ──
+
+  const handleSync = async (subscriptionId: string) => {
+    setSyncingIds((prev) => new Set(prev).add(subscriptionId));
+    setSyncErrors((prev) => {
+      const next = new Map(prev);
+      next.delete(subscriptionId);
+      return next;
+    });
+    try {
+      await api.syncSubscription(subscriptionId);
+      await refreshTree();
+      setToast(t.syncSuccess);
+      setTimeout(() => setToast(""), 3000);
+    } catch (err: unknown) {
+      setSyncErrors((prev) => new Map(prev).set(subscriptionId, String(err)));
+    } finally {
+      setSyncingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(subscriptionId);
+        return next;
+      });
+    }
+  };
+
+  // Auto-sync every hour
+  useEffect(() => {
+    if (subscriptions.length === 0) return;
+    const interval = setInterval(() => {
+      for (const sub of subscriptions) {
+        handleSync(sub.id);
+      }
+    }, 3600000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subscriptions]);
+
   // ── Render ──
 
   const renderDetailPanel = () => {
@@ -534,9 +594,10 @@ export default function MainPage({
 
     if (selected?.kind === "folder") {
       const f = selected.data;
+      const sub = subscriptions.find((s) => s.folder_id === f.id);
       return (
         <div className="detail-panel">
-          <h2>📁 {f.name}</h2>
+          <h2>{sub ? "🌐" : "📁"} {f.name}</h2>
           {f.description && (
             <div className="detail-field">
               <strong>{t.description}</strong> {f.description}
@@ -545,7 +606,27 @@ export default function MainPage({
           <div className="detail-field">
             <strong>{t.items}</strong> {f.children.length}
           </div>
+          {sub && (
+            <div className="detail-field">
+              <strong>{t.lastSynced}</strong>{" "}
+              {sub.last_synced ?? t.never}
+            </div>
+          )}
+          {sub && syncErrors.has(sub.id) && (
+            <div className="detail-field detail-error">
+              ⚠️ {t.syncError}: {syncErrors.get(sub.id)}
+            </div>
+          )}
           <div className="form-actions">
+            {sub && (
+              <button
+                className="btn btn-action"
+                onClick={() => handleSync(sub.id)}
+                disabled={syncingIds.has(sub.id)}
+              >
+                {syncingIds.has(sub.id) ? t.syncing : t.syncNow}
+              </button>
+            )}
             <button
               className="btn btn-primary btn-action"
               onClick={() => setEditMode({ kind: "edit-folder", folder: f })}
@@ -679,6 +760,8 @@ export default function MainPage({
             checkMode={exportMode}
             checkedIds={checkedIds}
             onCheck={handleCheck}
+            subscriptionFolderIds={subscriptionFolderIds}
+            syncErrorFolderIds={syncErrorFolderIds}
           />
         </div>
         {!exportMode && <div className="detail">{renderDetailPanel()}</div>}
@@ -693,6 +776,29 @@ export default function MainPage({
         >
           {contextMenu.node.type === "Folder" && (
             <>
+              {subscriptionFolderIds.has(contextMenu.node.id) && (
+                <>
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      const sub = subscriptions.find(
+                        (s) => s.folder_id === contextMenu.node.id,
+                      );
+                      if (sub) handleSync(sub.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {syncingIds.has(
+                      subscriptions.find(
+                        (s) => s.folder_id === contextMenu.node.id,
+                      )?.id ?? "",
+                    )
+                      ? t.syncing
+                      : t.syncNow}
+                  </div>
+                  <div className="context-separator" />
+                </>
+              )}
               <div
                 className="context-item"
                 onClick={() => {

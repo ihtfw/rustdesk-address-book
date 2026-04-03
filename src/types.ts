@@ -38,3 +38,13 @@ export type SelectedItem =
   | { kind: "folder"; data: Folder }
   | { kind: "connection"; data: Connection }
   | null;
+
+export interface Subscription {
+  id: string;
+  name: string;
+  url: string;
+  master_key: string;
+  folder_id: string;
+  last_id: number;
+  last_synced: string | null;
+}

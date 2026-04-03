@@ -44,6 +44,13 @@ pub fn run() {
             commands::export_nodes,
             commands::import_nodes,
             commands::try_import,
+            commands::get_subscriptions,
+            commands::add_subscription,
+            commands::update_subscription,
+            commands::remove_subscription,
+            commands::sync_pull,
+            commands::sync_push,
+            commands::sync_subscription,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

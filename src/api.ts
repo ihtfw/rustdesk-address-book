@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Folder, Connection } from "./types";
+import type { Folder, Connection, Subscription } from "./types";
 
 // Auth
 export const addressBookExists = () => invoke<boolean>("address_book_exists");
@@ -88,3 +88,19 @@ export const importNodes = (filePath: string, password: string) =>
   invoke<Folder>("import_nodes", { filePath, password });
 export const tryImport = (filePath: string) =>
   invoke<boolean>("try_import", { filePath });
+
+// Subscriptions
+export const getSubscriptions = () =>
+  invoke<Subscription[]>("get_subscriptions");
+export const addSubscription = (name: string, url: string, masterKey: string) =>
+  invoke<Subscription>("add_subscription", { name, url, masterKey });
+export const updateSubscription = (id: string, name: string, url: string, masterKey: string) =>
+  invoke<Subscription>("update_subscription", { id, name, url, masterKey });
+export const removeSubscription = (id: string) =>
+  invoke<void>("remove_subscription", { id });
+export const syncPull = (subscriptionId: string) =>
+  invoke<Folder>("sync_pull", { subscriptionId });
+export const syncPush = (subscriptionId: string) =>
+  invoke<void>("sync_push", { subscriptionId });
+export const syncSubscription = (subscriptionId: string) =>
+  invoke<Folder>("sync_subscription", { subscriptionId });

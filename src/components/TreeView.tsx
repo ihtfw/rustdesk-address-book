@@ -18,6 +18,10 @@ interface Props {
   checkMode?: boolean;
   checkedIds?: Set<string>;
   onCheck?: (id: string, checked: boolean) => void;
+  // Subscription folder IDs (render 🌐 instead of 📁)
+  subscriptionFolderIds?: Set<string>;
+  // Subscription folders with sync errors (show ⚠️)
+  syncErrorFolderIds?: Set<string>;
 }
 
 /** Collect all descendant IDs of a folder node */
@@ -42,6 +46,8 @@ function TreeNodeItem({
   checkMode,
   checkedIds,
   onCheck,
+  subscriptionFolderIds,
+  syncErrorFolderIds,
 }: Props & { node: TreeNode }) {
   const [expanded, setExpanded] = useState(true);
   const [dragOver, setDragOver] = useState(false);
@@ -155,7 +161,7 @@ function TreeNodeItem({
               {expanded ? "▾" : "▸"}
             </span>
           )}
-          <span className="tree-icon">{isFolder ? "📁" : "🖥️"}</span>
+          <span className="tree-icon">{isFolder ? (subscriptionFolderIds?.has(node.id) ? (syncErrorFolderIds?.has(node.id) ? "⚠️" : "🌐") : "📁") : "🖥️"}</span>
           <span className="tree-label">{node.name}</span>
           {checkMode && (
             <span className="tree-id">{!isFolder ? (node as any).rustdesk_id || "" : ""}</span>
@@ -185,6 +191,8 @@ function TreeNodeItem({
               checkMode={checkMode}
               checkedIds={checkedIds}
               onCheck={onCheck}
+              subscriptionFolderIds={subscriptionFolderIds}
+              syncErrorFolderIds={syncErrorFolderIds}
             />
           ))}
         </div>
@@ -204,6 +212,8 @@ export default function TreeView({
   checkMode,
   checkedIds,
   onCheck,
+  subscriptionFolderIds,
+  syncErrorFolderIds,
 }: Props) {
   if (nodes.length === 0) {
     return <div className="tree-empty">{useI18n().noItemsYet}</div>;
@@ -225,6 +235,8 @@ export default function TreeView({
           checkMode={checkMode}
           checkedIds={checkedIds}
           onCheck={onCheck}
+          subscriptionFolderIds={subscriptionFolderIds}
+          syncErrorFolderIds={syncErrorFolderIds}
         />
       ))}
     </div>

@@ -116,6 +116,26 @@ export interface Translations {
   noNodesSelected: string;
   saveExportFile: string;
   selectImportFile: string;
+
+  // Subscriptions
+  subscriptions: string;
+  addSubscription: string;
+  editSubscription: string;
+  removeSubscription: string;
+  subscriptionName: string;
+  subscriptionUrl: string;
+  subscriptionKey: string;
+  subscriptionNamePlaceholder: string;
+  subscriptionUrlPlaceholder: string;
+  subscriptionKeyPlaceholder: string;
+  syncNow: string;
+  syncing: string;
+  syncSuccess: string;
+  syncError: string;
+  lastSynced: string;
+  never: string;
+  removeSubscriptionConfirm: string;
+  noSubscriptions: string;
 }
 
 const I18nContext = createContext<Translations>(null!);

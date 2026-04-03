@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import * as api from "../api";
+import type { Subscription } from "../types";
 import { useI18n, type Locale } from "../i18n";
 
 interface Props {
@@ -21,6 +22,11 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [editingSub, setEditingSub] = useState<Subscription | null>(null);
+  const [subName, setSubName] = useState("");
+  const [subUrl, setSubUrl] = useState("");
+  const [subKey, setSubKey] = useState("");
   const t = useI18n();
 
   useEffect(() => {
@@ -31,6 +37,10 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
     api
       .getAutoUpdate()
       .then(setAutoUpdate)
+      .catch(() => {});
+    api
+      .getSubscriptions()
+      .then(setSubscriptions)
       .catch(() => {});
   }, []);
 
@@ -91,6 +101,60 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
     }
   };
 
+  const handleAddSubscription = async () => {
+    setError("");
+    if (!subName.trim() || !subUrl.trim() || !subKey.trim()) return;
+    try {
+      const sub = await api.addSubscription(subName.trim(), subUrl.trim(), subKey.trim());
+      setSubscriptions((prev) => [...prev, sub]);
+      setSubName("");
+      setSubUrl("");
+      setSubKey("");
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
+
+  const handleEditSubscription = (sub: Subscription) => {
+    setEditingSub(sub);
+    setSubName(sub.name);
+    setSubUrl(sub.url);
+    setSubKey(sub.master_key);
+  };
+
+  const handleSaveSubscription = async () => {
+    if (!editingSub) return;
+    setError("");
+    try {
+      const updated = await api.updateSubscription(editingSub.id, subName.trim(), subUrl.trim(), subKey.trim());
+      setSubscriptions((prev) => prev.map((s) => (s.id === updated.id ? updated : s)));
+      setEditingSub(null);
+      setSubName("");
+      setSubUrl("");
+      setSubKey("");
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
+
+  const handleRemoveSubscription = async (id: string) => {
+    if (!confirm(t.removeSubscriptionConfirm)) return;
+    setError("");
+    try {
+      await api.removeSubscription(id);
+      setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
+
+  const handleCancelEditSub = () => {
+    setEditingSub(null);
+    setSubName("");
+    setSubUrl("");
+    setSubKey("");
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -149,6 +213,71 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>{t.subscriptions}</h3>
+          {subscriptions.length === 0 && !editingSub && (
+            <p style={{ color: "var(--text-secondary)", fontSize: 13, marginBottom: 12 }}>
+              {t.noSubscriptions}
+            </p>
+          )}
+          {subscriptions.map((sub) => (
+            <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "6px 8px", background: "var(--bg-primary)", borderRadius: "var(--radius)", border: "1px solid var(--border)" }}>
+              <span style={{ flex: 1, fontSize: 13 }}>🌐 {sub.name}</span>
+              <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>
+                {sub.last_synced ? new Date(sub.last_synced).toLocaleString() : t.never}
+              </span>
+              <button className="btn btn-small" onClick={() => handleEditSubscription(sub)}>
+                {t.edit}
+              </button>
+              <button className="btn btn-small btn-danger" onClick={() => handleRemoveSubscription(sub.id)}>
+                {t.removeSubscription}
+              </button>
+            </div>
+          ))}
+          <div style={{ marginTop: 8 }}>
+            <div className="form-group">
+              <label>{t.subscriptionName}</label>
+              <input
+                value={subName}
+                onChange={(e) => setSubName(e.target.value)}
+                placeholder={t.subscriptionNamePlaceholder}
+              />
+            </div>
+            <div className="form-group">
+              <label>{t.subscriptionUrl}</label>
+              <input
+                value={subUrl}
+                onChange={(e) => setSubUrl(e.target.value)}
+                placeholder={t.subscriptionUrlPlaceholder}
+              />
+            </div>
+            <div className="form-group">
+              <label>{t.subscriptionKey}</label>
+              <input
+                value={subKey}
+                onChange={(e) => setSubKey(e.target.value)}
+                placeholder={t.subscriptionKeyPlaceholder}
+              />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              {editingSub ? (
+                <>
+                  <button className="btn btn-primary" onClick={handleSaveSubscription}>
+                    {t.save}
+                  </button>
+                  <button className="btn" onClick={handleCancelEditSub}>
+                    {t.cancel}
+                  </button>
+                </>
+              ) : (
+                <button className="btn btn-primary" onClick={handleAddSubscription} disabled={!subName.trim() || !subUrl.trim() || !subKey.trim()}>
+                  {t.addSubscription}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
