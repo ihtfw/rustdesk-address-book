@@ -126,6 +126,26 @@ const en: Translations = {
   never: "never",
   removeSubscriptionConfirm: "Remove this subscription and its folder?",
   noSubscriptions: "No subscriptions yet.",
+
+  // Access tokens
+  manageAccess: "Manage Access",
+  accessTokens: "Access Tokens",
+  createToken: "Create Token",
+  revokeToken: "Revoke",
+  tokenLabel: "Label",
+  tokenPermissions: "Permissions",
+  readWrite: "Read & Write",
+  readOnly: "Read Only",
+  tokenCreated: "Token created — copy it now, it won't be shown again!",
+  tokenRevoked: "Token revoked",
+  copyToken: "Copy Token",
+  tokenCopied: "Token copied!",
+  noTokens: "No access tokens yet.",
+  accessToken: "Access Token",
+  accessTokenPlaceholder: "Paste token from admin (optional)",
+  tokenLabelPlaceholder: "e.g. Alice's laptop",
+  admin: "Admin",
+  revokeConfirm: "Revoke this token? The user will lose access.",
 };
 
 export default en;

@@ -138,6 +138,26 @@ export interface Translations {
   never: string;
   removeSubscriptionConfirm: string;
   noSubscriptions: string;
+
+  // Access tokens
+  manageAccess: string;
+  accessTokens: string;
+  createToken: string;
+  revokeToken: string;
+  tokenLabel: string;
+  tokenPermissions: string;
+  readWrite: string;
+  readOnly: string;
+  tokenCreated: string;
+  tokenRevoked: string;
+  copyToken: string;
+  tokenCopied: string;
+  noTokens: string;
+  accessToken: string;
+  accessTokenPlaceholder: string;
+  tokenLabelPlaceholder: string;
+  admin: string;
+  revokeConfirm: string;
 }
 
 const I18nContext = createContext<Translations>(null!);

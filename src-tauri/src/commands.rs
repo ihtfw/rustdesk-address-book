@@ -562,6 +562,7 @@ pub fn add_subscription(
     name: String,
     url: String,
     master_key: String,
+    access_token: Option<String>,
 ) -> Result<Subscription, AppError> {
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
@@ -577,6 +578,8 @@ pub fn add_subscription(
         last_synced: None,
         modified_ids: HashSet::new(),
         deleted_ids: HashSet::new(),
+        admin_token: None,
+        access_token,
     };
 
     // Create the corresponding top-level folder
@@ -655,6 +658,110 @@ pub fn remove_subscription(
     Ok(())
 }
 
+// ─── Token Management Commands ──────────────────────────────────
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct AccessTokenInfo {
+    pub id: u64,
+    pub label: String,
+    pub permissions: String,
+    pub created_at: String,
+    pub revoked: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CreatedToken {
+    pub id: u64,
+    pub token: String,
+    pub label: String,
+    pub permissions: String,
+}
+
+fn get_sub_url_and_admin_token(state: &AppState, subscription_id: &str) -> Result<(String, String), AppError> {
+    let sub_uuid = Uuid::parse_str(subscription_id)
+        .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
+    let book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_ref().ok_or(AppError::Locked)?;
+    let sub = book.subscriptions.iter().find(|s| s.id == sub_uuid)
+        .ok_or_else(|| AppError::General("Subscription not found".to_string()))?;
+    let admin_token = sub.admin_token.clone()
+        .ok_or_else(|| AppError::General("Not an admin of this subscription".to_string()))?;
+    Ok((sub.url.clone(), admin_token))
+}
+
+#[tauri::command]
+pub async fn list_access_tokens(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+) -> Result<Vec<AccessTokenInfo>, AppError> {
+    let (url, admin_token) = get_sub_url_and_admin_token(&state, &subscription_id)?;
+
+    let client = reqwest::Client::new();
+    let response = client.get(format!("{}/tokens", url))
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .send()
+        .await
+        .map_err(|e| AppError::General(format!("Request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(AppError::General(format!("Server returned {}", response.status())));
+    }
+
+    #[derive(serde::Deserialize)]
+    struct Resp { tokens: Vec<AccessTokenInfo> }
+    let resp: Resp = response.json().await
+        .map_err(|e| AppError::General(format!("Invalid response: {}", e)))?;
+    Ok(resp.tokens)
+}
+
+#[tauri::command]
+pub async fn create_access_token(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+    label: String,
+    permissions: String,
+) -> Result<CreatedToken, AppError> {
+    let (url, admin_token) = get_sub_url_and_admin_token(&state, &subscription_id)?;
+
+    let client = reqwest::Client::new();
+    let response = client.post(format!("{}/tokens", url))
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .json(&serde_json::json!({ "label": label, "permissions": permissions }))
+        .send()
+        .await
+        .map_err(|e| AppError::General(format!("Request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(AppError::General(format!("Server returned {}", response.status())));
+    }
+
+    let token: CreatedToken = response.json().await
+        .map_err(|e| AppError::General(format!("Invalid response: {}", e)))?;
+    Ok(token)
+}
+
+#[tauri::command]
+pub async fn revoke_access_token(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+    token_id: u64,
+) -> Result<(), AppError> {
+    let (url, admin_token) = get_sub_url_and_admin_token(&state, &subscription_id)?;
+
+    let client = reqwest::Client::new();
+    let response = client.delete(format!("{}/tokens/{}", url, token_id))
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .send()
+        .await
+        .map_err(|e| AppError::General(format!("Request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(AppError::General(format!("Server returned {}", response.status())));
+    }
+
+    Ok(())
+}
+
 // ─── Sync Commands ──────────────────────────────────────────────
 
 /// Helper: collect all nodes inside a folder as a flat list of (node, parent_id) pairs.
@@ -694,12 +801,13 @@ async fn do_sync_pull(
         .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
 
     // Get subscription info
-    let (url, master_key, folder_id, last_id) = {
+    let (url, master_key, folder_id, last_id, auth_token) = {
         let book_lock = state.address_book.lock().unwrap();
         let book = book_lock.as_ref().ok_or(AppError::Locked)?;
         let sub = book.subscriptions.iter().find(|s| s.id == sub_uuid)
             .ok_or_else(|| AppError::General("Subscription not found".to_string()))?;
-        (sub.url.clone(), sub.master_key.clone(), sub.folder_id, sub.last_id)
+        (sub.url.clone(), sub.master_key.clone(), sub.folder_id, sub.last_id,
+         sub.admin_token.clone().or_else(|| sub.access_token.clone()))
     };
 
     info!(sub = %subscription_id, last_id = last_id, "sync_pull: starting");
@@ -707,7 +815,11 @@ async fn do_sync_pull(
     // GET changes from server
     let pull_url = format!("{}?after={}", url, last_id);
     let http_start = std::time::Instant::now();
-    let response = client.get(&pull_url)
+    let mut req = client.get(&pull_url);
+    if let Some(token) = &auth_token {
+        req = req.header("Authorization", format!("Bearer {}", token));
+    }
+    let response = req
         .send()
         .await
         .map_err(|e| AppError::General(format!("Sync pull failed: {}", e)))?;
@@ -802,7 +914,7 @@ async fn do_sync_push(
         .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
 
     // Collect data needed for push
-    let (url, master_key, modified_ids, deleted_ids, folder_id) = {
+    let (url, master_key, modified_ids, deleted_ids, folder_id, auth_token) = {
         let book_lock = state.address_book.lock().unwrap();
         let book = book_lock.as_ref().ok_or(AppError::Locked)?;
         let sub = book.subscriptions.iter().find(|s| s.id == sub_uuid)
@@ -813,6 +925,7 @@ async fn do_sync_push(
             sub.modified_ids.clone(),
             sub.deleted_ids.clone(),
             sub.folder_id,
+            sub.admin_token.clone().or_else(|| sub.access_token.clone()),
         )
     };
 
@@ -865,6 +978,8 @@ async fn do_sync_push(
 
     info!(sub = %subscription_id, events = events.len(), modified = modified_ids.len(), deleted = deleted_ids.len(), "sync_push: sending events");
 
+    let mut received_admin_token: Option<String> = None;
+
     if !events.is_empty() {
         // Derive key once and reuse for all events (avoids N × 250ms KDF)
         let (sync_key, sync_salt) = crypto::make_key(&master_key)?;
@@ -879,8 +994,12 @@ async fn do_sync_push(
             let encoded = BASE64.encode(&encrypted);
 
             let http_start = std::time::Instant::now();
-            let response = client.post(&url)
-                .json(&serde_json::json!({ "data": encoded }))
+            let mut req = client.post(&url)
+                .json(&serde_json::json!({ "data": encoded }));
+            if let Some(token) = &auth_token {
+                req = req.header("Authorization", format!("Bearer {}", token));
+            }
+            let response = req
                 .send()
                 .await
                 .map_err(|e| AppError::General(format!("Sync push failed: {}", e)))?;
@@ -897,8 +1016,33 @@ async fn do_sync_push(
             if push_response.id > new_last_id {
                 new_last_id = push_response.id;
             }
+            if let Some(at) = push_response.admin_token {
+                info!(sub = %subscription_id, "sync_push: received admin_token (channel created)");
+                received_admin_token = Some(at);
+            }
 
             info!(sub = %subscription_id, event_idx = i, encrypt_ms = encrypt_elapsed.as_millis(), http_ms = http_elapsed.as_millis(), data_bytes = encoded.len(), "sync_push: sent event");
+        }
+    } else if auth_token.is_none() {
+        // No events, but no token yet — send an empty push to create the channel and get admin_token
+        info!(sub = %subscription_id, "sync_push: no events, sending init push for channel creation");
+        let response = client.post(&url)
+            .json(&serde_json::json!({ "data": "" }))
+            .send()
+            .await
+            .map_err(|e| AppError::General(format!("Sync push failed: {}", e)))?;
+
+        if !response.status().is_success() {
+            warn!(sub = %subscription_id, status = %response.status(), "sync_push: init push server error");
+            return Err(AppError::General(format!("Server returned {}", response.status())));
+        }
+
+        let push_response: SyncPushResponse = response.json()
+            .await
+            .map_err(|e| AppError::General(format!("Invalid server response: {}", e)))?;
+        if let Some(at) = push_response.admin_token {
+            info!(sub = %subscription_id, "sync_push: received admin_token (channel created)");
+            received_admin_token = Some(at);
         }
     }
 
@@ -913,6 +1057,9 @@ async fn do_sync_push(
                 sub.last_id = new_last_id;
             }
             sub.last_synced = Some(Utc::now());
+            if let Some(at) = received_admin_token {
+                sub.admin_token = Some(at);
+            }
         }
     }
 

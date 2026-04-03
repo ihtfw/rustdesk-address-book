@@ -87,6 +87,9 @@ pub fn run() {
             commands::sync_pull,
             commands::sync_push,
             commands::sync_subscription,
+            commands::list_access_tokens,
+            commands::create_access_token,
+            commands::revoke_access_token,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

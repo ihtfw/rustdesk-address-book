@@ -47,4 +47,21 @@ export interface Subscription {
   folder_id: string;
   last_id: number;
   last_synced: string | null;
+  admin_token?: string | null;
+  access_token?: string | null;
+}
+
+export interface AccessTokenInfo {
+  id: number;
+  label: string;
+  permissions: string;
+  created_at: string;
+  revoked: boolean;
+}
+
+export interface CreatedToken {
+  id: number;
+  token: string;
+  label: string;
+  permissions: string;
 }

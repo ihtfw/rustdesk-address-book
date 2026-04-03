@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Folder, Connection, Subscription } from "./types";
+import type { Folder, Connection, Subscription, AccessTokenInfo, CreatedToken } from "./types";
 
 // Auth
 export const addressBookExists = () => invoke<boolean>("address_book_exists");
@@ -93,8 +93,8 @@ export const tryImport = (filePath: string) =>
 // Subscriptions
 export const getSubscriptions = () =>
   invoke<Subscription[]>("get_subscriptions");
-export const addSubscription = (name: string, url: string, masterKey: string) =>
-  invoke<Subscription>("add_subscription", { name, url, masterKey });
+export const addSubscription = (name: string, url: string, masterKey: string, accessToken?: string) =>
+  invoke<Subscription>("add_subscription", { name, url, masterKey, accessToken: accessToken || null });
 export const updateSubscription = (id: string, name: string, url: string, masterKey: string) =>
   invoke<Subscription>("update_subscription", { id, name, url, masterKey });
 export const removeSubscription = (id: string) =>
@@ -105,3 +105,11 @@ export const syncPush = (subscriptionId: string) =>
   invoke<void>("sync_push", { subscriptionId });
 export const syncSubscription = (subscriptionId: string) =>
   invoke<Folder>("sync_subscription", { subscriptionId });
+
+// Access tokens
+export const listAccessTokens = (subscriptionId: string) =>
+  invoke<AccessTokenInfo[]>("list_access_tokens", { subscriptionId });
+export const createAccessToken = (subscriptionId: string, label: string, permissions: string) =>
+  invoke<CreatedToken>("create_access_token", { subscriptionId, label, permissions });
+export const revokeAccessToken = (subscriptionId: string, tokenId: number) =>
+  invoke<void>("revoke_access_token", { subscriptionId, tokenId });

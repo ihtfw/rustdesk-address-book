@@ -61,6 +61,12 @@ pub struct Subscription {
     /// Node IDs deleted locally since last push.
     #[serde(default)]
     pub deleted_ids: HashSet<Uuid>,
+    /// Admin token — set if we created this channel (first push).
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    /// Access token — set if we joined via a shared token.
+    #[serde(default)]
+    pub access_token: Option<String>,
 }
 
 /// Current sync event format version. Bump when making breaking changes.
@@ -105,6 +111,9 @@ pub struct SyncPullEntry {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyncPushResponse {
     pub id: u64,
+    /// Returned only on first push (channel creation).
+    #[serde(default)]
+    pub admin_token: Option<String>,
 }
 
 impl AddressBook {

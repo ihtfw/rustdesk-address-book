@@ -127,6 +127,26 @@ const ru: Translations = {
   never: "никогда",
   removeSubscriptionConfirm: "Удалить подписку и её папку?",
   noSubscriptions: "Подписок пока нет.",
+
+  // Access tokens
+  manageAccess: "Управление доступом",
+  accessTokens: "Токены доступа",
+  createToken: "Создать токен",
+  revokeToken: "Отозвать",
+  tokenLabel: "Метка",
+  tokenPermissions: "Права",
+  readWrite: "Чтение и запись",
+  readOnly: "Только чтение",
+  tokenCreated: "Токен создан — скопируйте его сейчас, он больше не будет показан!",
+  tokenRevoked: "Токен отозван",
+  copyToken: "Копировать токен",
+  tokenCopied: "Токен скопирован!",
+  noTokens: "Токенов доступа пока нет.",
+  accessToken: "Токен доступа",
+  accessTokenPlaceholder: "Вставьте токен от администратора (необязательно)",
+  tokenLabelPlaceholder: "напр. Ноутбук Алисы",
+  admin: "Админ",
+  revokeConfirm: "Отозвать этот токен? Пользователь потеряет доступ.",
 };
 
 export default ru;
