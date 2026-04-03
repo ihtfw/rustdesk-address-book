@@ -55,3 +55,9 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+/// Decrypt a blob using the master password, returning plaintext bytes.
+/// Public API for CLI usage.
+pub fn decrypt_blob(blob: &[u8], password: &str) -> Result<Vec<u8>, String> {
+    crypto::decrypt(blob, password).map_err(|e| e.to_string())
+}
