@@ -111,8 +111,21 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
     setError("");
     if (!subName.trim() || !subUrl.trim() || !subKey.trim()) return;
     try {
-      const sub = await api.addSubscription(subName.trim(), subUrl.trim(), subKey.trim(), subAccessToken.trim() || undefined);
-      setSubscriptions((prev) => [...prev, sub]);
+      let sub = await api.addSubscription(subName.trim(), subUrl.trim(), subKey.trim(), subAccessToken.trim() || undefined);
+      // Trigger first sync to create channel / pull data
+      try { await api.syncSubscription(sub.id); } catch { /* shown elsewhere */ }
+      // Fetch permissions from server and update subscription
+      try {
+        const perms = await api.checkSubscriptionPermissions(sub.id);
+        sub = { ...sub, permissions: perms };
+      } catch { /* server may be unreachable, permissions stay null */ }
+      // Reload subscriptions to get updated admin_token + permissions
+      try {
+        const all = await api.getSubscriptions();
+        setSubscriptions(all);
+      } catch {
+        setSubscriptions((prev) => [...prev, sub]);
+      }
       setSubName("");
       setSubUrl("");
       setSubKey("");

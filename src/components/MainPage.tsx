@@ -67,6 +67,12 @@ export default function MainPage({
     [subscriptions],
   );
 
+  // Set of folder IDs belonging to read-only subscriptions
+  const readOnlyFolderIds = useMemo(
+    () => new Set(subscriptions.filter((s) => s.permissions === "ro").map((s) => s.folder_id)),
+    [subscriptions],
+  );
+
   // Find which subscription a node belongs to (if any)
   const findSubscriptionForNode = useCallback(
     (nodeId: string): Subscription | null => {
@@ -83,6 +89,15 @@ export default function MainPage({
       return null;
     },
     [subscriptions, root],
+  );
+
+  // Check if a node is inside a read-only subscription
+  const isNodeReadOnly = useCallback(
+    (nodeId: string): boolean => {
+      const sub = findSubscriptionForNode(nodeId);
+      return sub?.permissions === "ro";
+    },
+    [findSubscriptionForNode],
   );
 
   // Sync a subscription silently (no error toast, used for auto-sync after mutations)
@@ -260,6 +275,8 @@ export default function MainPage({
     position: number,
   ) => {
     console.log("handleDrop:", { nodeId, newParentId, position });
+    // Block drag-and-drop for read-only subscription nodes
+    if (isNodeReadOnly(nodeId) || isNodeReadOnly(newParentId)) return;
     try {
       const sub =
         findSubscriptionForNode(nodeId) ||
@@ -661,20 +678,24 @@ export default function MainPage({
             >
               ▶ Connect
             </button>
-            <button
-              className="btn btn-primary btn-action"
-              onClick={() =>
-                setEditMode({ kind: "edit-connection", connection: c })
-              }
-            >
-              ✏️ {t.edit}
-            </button>
-            <button
-              className="btn btn-danger btn-action"
-              onClick={() => handleDelete(c.id)}
-            >
-              🗑️ {t.delete_}
-            </button>
+            {!isNodeReadOnly(c.id) && (
+              <button
+                className="btn btn-primary btn-action"
+                onClick={() =>
+                  setEditMode({ kind: "edit-connection", connection: c })
+                }
+              >
+                ✏️ {t.edit}
+              </button>
+            )}
+            {!isNodeReadOnly(c.id) && (
+              <button
+                className="btn btn-danger btn-action"
+                onClick={() => handleDelete(c.id)}
+              >
+                🗑️ {t.delete_}
+              </button>
+            )}
           </div>
         </div>
       );
@@ -683,9 +704,12 @@ export default function MainPage({
     if (selected?.kind === "folder") {
       const f = selected.data;
       const sub = subscriptions.find((s) => s.folder_id === f.id);
+      const ro = readOnlyFolderIds.has(f.id) || isNodeReadOnly(f.id);
       return (
         <div className="detail-panel">
-          <h2>{sub ? "🌐" : "📁"} {f.name}</h2>
+          <h2>{sub ? "🌐" : "📁"} {f.name}
+            {sub?.permissions === "ro" && <span style={{ marginLeft: 8, fontSize: 11, padding: "1px 6px", borderRadius: 4, background: "var(--text-secondary)", color: "#fff" }}>{t.readOnly}</span>}
+          </h2>
           {f.description && (
             <div className="detail-field">
               <strong>{t.description}</strong> {f.description}
@@ -715,7 +739,7 @@ export default function MainPage({
                 {syncingIds.has(sub.id) ? t.syncing : t.syncNow}
               </button>
             )}
-            {!sub && (
+            {!sub && !ro && (
               <button
                 className="btn btn-primary btn-action"
                 onClick={() => setEditMode({ kind: "edit-folder", folder: f })}
@@ -723,7 +747,7 @@ export default function MainPage({
                 ✏️ {t.edit}
               </button>
             )}
-            {!sub && f.id !== root.id && (
+            {!sub && !ro && f.id !== root.id && (
               <button
                 className="btn btn-danger btn-action"
                 onClick={() => handleDelete(f.id)}
@@ -889,31 +913,35 @@ export default function MainPage({
                   <div className="context-separator" />
                 </>
               )}
-              <div
-                className="context-item"
-                onClick={() => {
-                  setEditMode({
-                    kind: "new-folder",
-                    parentId: contextMenu.node.id,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                {t.newFolder}
-              </div>
-              <div
-                className="context-item"
-                onClick={() => {
-                  setEditMode({
-                    kind: "new-connection",
-                    parentId: contextMenu.node.id,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                {t.newConnection}
-              </div>
-              {!subscriptionFolderIds.has(contextMenu.node.id) && (
+              {!readOnlyFolderIds.has(contextMenu.node.id) && !isNodeReadOnly(contextMenu.node.id) && (
+                <>
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      setEditMode({
+                        kind: "new-folder",
+                        parentId: contextMenu.node.id,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.newFolder}
+                  </div>
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      setEditMode({
+                        kind: "new-connection",
+                        parentId: contextMenu.node.id,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.newConnection}
+                  </div>
+                </>
+              )}
+              {!subscriptionFolderIds.has(contextMenu.node.id) && !isNodeReadOnly(contextMenu.node.id) && (
                 <>
                   <div className="context-separator" />
                   <div
@@ -954,28 +982,32 @@ export default function MainPage({
               >
                 {t.connect}
               </div>
-              <div className="context-separator" />
-              <div
-                className="context-item"
-                onClick={() => {
-                  setEditMode({
-                    kind: "edit-connection",
-                    connection: contextMenu.node as any,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                {t.editConnection}
-              </div>
-              <div
-                className="context-item context-danger"
-                onClick={() => {
-                  handleDelete(contextMenu.node.id);
-                  setContextMenu(null);
-                }}
-              >
-                {t.deleteConnection}
-              </div>
+              {!isNodeReadOnly(contextMenu.node.id) && (
+                <>
+                  <div className="context-separator" />
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      setEditMode({
+                        kind: "edit-connection",
+                        connection: contextMenu.node as any,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.editConnection}
+                  </div>
+                  <div
+                    className="context-item context-danger"
+                    onClick={() => {
+                      handleDelete(contextMenu.node.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.deleteConnection}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>

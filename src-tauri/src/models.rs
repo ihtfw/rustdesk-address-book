@@ -67,6 +67,9 @@ pub struct Subscription {
     /// Access token — set if we joined via a shared token.
     #[serde(default)]
     pub access_token: Option<String>,
+    /// Permissions: "admin", "rw", or "ro". Fetched from server.
+    #[serde(default)]
+    pub permissions: Option<String>,
 }
 
 /// Current sync event format version. Bump when making breaking changes.

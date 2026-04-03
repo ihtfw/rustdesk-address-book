@@ -49,6 +49,7 @@ export interface Subscription {
   last_synced: string | null;
   admin_token?: string | null;
   access_token?: string | null;
+  permissions?: string | null;
 }
 
 export interface AccessTokenInfo {

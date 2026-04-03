@@ -113,3 +113,5 @@ export const createAccessToken = (subscriptionId: string, label: string, permiss
   invoke<CreatedToken>("create_access_token", { subscriptionId, label, permissions });
 export const revokeAccessToken = (subscriptionId: string, tokenId: number) =>
   invoke<void>("revoke_access_token", { subscriptionId, tokenId });
+export const checkSubscriptionPermissions = (subscriptionId: string) =>
+  invoke<string>("check_subscription_permissions", { subscriptionId });

@@ -375,6 +375,35 @@ async fn revoke_token(
     Ok(StatusCode::OK)
 }
 
+// ── Permissions check ──
+
+#[derive(Serialize)]
+struct MeResponse {
+    permissions: String,
+}
+
+async fn me(
+    Path(guid): Path<String>,
+    headers: HeaderMap,
+    State(db): State<Db>,
+) -> Result<Json<MeResponse>, AppError> {
+    let conn = db.lock().await;
+    let token = extract_bearer(&headers);
+    let auth = authenticate(&conn, &guid, token.as_deref());
+
+    if !auth.channel_exists {
+        // Channel doesn't exist yet — caller will become admin on first push
+        return Ok(Json(MeResponse { permissions: "admin".to_string() }));
+    }
+
+    match auth.role {
+        Some(Role::Admin) => Ok(Json(MeResponse { permissions: "admin".to_string() })),
+        Some(Role::ReadWrite) => Ok(Json(MeResponse { permissions: "rw".to_string() })),
+        Some(Role::ReadOnly) => Ok(Json(MeResponse { permissions: "ro".to_string() })),
+        None => Err(AppError::Status(StatusCode::UNAUTHORIZED, "Authentication required".to_string())),
+    }
+}
+
 // ── Error handling ──
 
 enum AppError {
@@ -453,6 +482,7 @@ async fn main() {
         .route("/sync/{guid}", get(pull).post(push))
         .route("/sync/{guid}/tokens", get(list_tokens).post(create_token))
         .route("/sync/{guid}/tokens/{token_id}", delete(revoke_token))
+        .route("/sync/{guid}/me", get(me))
         .layer(CorsLayer::permissive())
         .with_state(db);
 

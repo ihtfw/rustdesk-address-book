@@ -580,6 +580,7 @@ pub fn add_subscription(
         deleted_ids: HashSet::new(),
         admin_token: None,
         access_token,
+        permissions: None,
     };
 
     // Create the corresponding top-level folder
@@ -760,6 +761,53 @@ pub async fn revoke_access_token(
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn check_subscription_permissions(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+) -> Result<String, AppError> {
+    let sub_uuid = Uuid::parse_str(&subscription_id)
+        .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
+
+    let (url, auth_token) = {
+        let book_lock = state.address_book.lock().unwrap();
+        let book = book_lock.as_ref().ok_or(AppError::Locked)?;
+        let sub = book.subscriptions.iter().find(|s| s.id == sub_uuid)
+            .ok_or_else(|| AppError::General("Subscription not found".to_string()))?;
+        (sub.url.clone(), sub.admin_token.clone().or_else(|| sub.access_token.clone()))
+    };
+
+    let me_url = format!("{}/me", url);
+    let client = reqwest::Client::new();
+    let mut req = client.get(&me_url);
+    if let Some(token) = &auth_token {
+        req = req.header("Authorization", format!("Bearer {}", token));
+    }
+    let response = req.send().await
+        .map_err(|e| AppError::General(format!("Request failed: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(AppError::General(format!("Server returned {}", response.status())));
+    }
+
+    #[derive(serde::Deserialize)]
+    struct MeResp { permissions: String }
+    let resp: MeResp = response.json().await
+        .map_err(|e| AppError::General(format!("Invalid response: {}", e)))?;
+
+    // Store permissions in subscription
+    {
+        let mut book_lock = state.address_book.lock().unwrap();
+        let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+        if let Some(sub) = book.subscriptions.iter_mut().find(|s| s.id == sub_uuid) {
+            sub.permissions = Some(resp.permissions.clone());
+        }
+    }
+    get_book_and_save(&state)?;
+
+    Ok(resp.permissions)
 }
 
 // ─── Sync Commands ──────────────────────────────────────────────
