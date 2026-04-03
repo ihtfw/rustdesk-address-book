@@ -429,6 +429,7 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
                 </button>
               )}
             </div>
+            {error && <div className="error-message" style={{ marginTop: 8 }}>{error}</div>}
           </div>
         </div>
 
