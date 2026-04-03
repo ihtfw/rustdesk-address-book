@@ -842,29 +842,33 @@ export default function MainPage({
               >
                 {t.newConnection}
               </div>
-              <div className="context-separator" />
-              <div
-                className="context-item"
-                onClick={() => {
-                  setEditMode({
-                    kind: "edit-folder",
-                    folder: contextMenu.node as any,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                {t.editFolder}
-              </div>
-              {contextMenu.node.id !== root.id && (
-                <div
-                  className="context-item context-danger"
-                  onClick={() => {
-                    handleDelete(contextMenu.node.id);
-                    setContextMenu(null);
-                  }}
-                >
-                  {t.deleteFolder}
-                </div>
+              {!subscriptionFolderIds.has(contextMenu.node.id) && (
+                <>
+                  <div className="context-separator" />
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      setEditMode({
+                        kind: "edit-folder",
+                        folder: contextMenu.node as any,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.editFolder}
+                  </div>
+                  {contextMenu.node.id !== root.id && (
+                    <div
+                      className="context-item context-danger"
+                      onClick={() => {
+                        handleDelete(contextMenu.node.id);
+                        setContextMenu(null);
+                      }}
+                    >
+                      {t.deleteFolder}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -909,7 +913,10 @@ export default function MainPage({
       {/* Settings modal */}
       {showSettings && (
         <Settings
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            refreshTree();
+          }}
           locale={locale}
           onLocaleChange={onLocaleChange}
         />
