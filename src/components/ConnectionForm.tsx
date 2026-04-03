@@ -111,16 +111,16 @@ export default function ConnectionForm({
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary">
-            {isEdit ? t.save : t.addConnection}
+          <button type="submit" className="btn btn-primary btn-action">
+            💾 {isEdit ? t.save : t.addConnection}
           </button>
-          <button type="button" className="btn" onClick={onCancel}>
-            {t.cancel}
+          <button type="button" className="btn btn-action" onClick={onCancel}>
+            ✕ {t.cancel}
           </button>
           {isEdit && onConnect && (
             <button
               type="button"
-              className="btn btn-connect"
+              className="btn btn-connect btn-action"
               onClick={onConnect}
             >
               ▶ Connect

@@ -336,24 +336,24 @@ export default function MainPage({
           )}
           <div className="form-actions">
             <button
-              className="btn btn-connect"
+              className="btn btn-connect btn-action"
               onClick={() => handleConnect(c.id)}
             >
               ▶ Connect
             </button>
             <button
-              className="btn btn-primary"
+              className="btn btn-primary btn-action"
               onClick={() =>
                 setEditMode({ kind: "edit-connection", connection: c })
               }
             >
-              {t.edit}
+              ✏️ {t.edit}
             </button>
             <button
-              className="btn btn-danger"
+              className="btn btn-danger btn-action"
               onClick={() => handleDelete(c.id)}
             >
-              {t.delete_}
+              🗑️ {t.delete_}
             </button>
           </div>
         </div>
@@ -375,17 +375,17 @@ export default function MainPage({
           </div>
           <div className="form-actions">
             <button
-              className="btn btn-primary"
+              className="btn btn-primary btn-action"
               onClick={() => setEditMode({ kind: "edit-folder", folder: f })}
             >
-              {t.edit}
+              ✏️ {t.edit}
             </button>
             {f.id !== root.id && (
               <button
-                className="btn btn-danger"
+                className="btn btn-danger btn-action"
                 onClick={() => handleDelete(f.id)}
               >
-                {t.delete_}
+                🗑️ {t.delete_}
               </button>
             )}
           </div>

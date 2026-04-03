@@ -64,11 +64,11 @@ export default function FolderForm({
         </div>
 
         <div className="form-actions">
-          <button type="submit" className="btn btn-primary">
-            {isEdit ? t.save : t.addFolder}
+          <button type="submit" className="btn btn-primary btn-action">
+            💾 {isEdit ? t.save : t.addFolder}
           </button>
-          <button type="button" className="btn" onClick={onCancel}>
-            {t.cancel}
+          <button type="button" className="btn btn-action" onClick={onCancel}>
+            ✕ {t.cancel}
           </button>
         </div>
       </form>

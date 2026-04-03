@@ -244,6 +244,11 @@ textarea {
   margin-top: 16px;
 }
 
+.btn-action {
+  flex: 1;
+  min-width: 0;
+}
+
 /* ─── Messages ─── */
 .error-message {
   color: var(--danger);
