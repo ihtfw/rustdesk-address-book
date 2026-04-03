@@ -18,6 +18,7 @@ const ru: Translations = {
   unlock: "Разблокировать",
   create: "Создать",
   addressBookLocation: "Расположение адресной книги",
+  recentFiles: "Недавние файлы",
   open: "📂 Открыть...",
   saveAs: "💾 Сохранить как...",
   default_: "↩ По умолчанию",

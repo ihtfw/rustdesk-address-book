@@ -21,6 +21,7 @@ pub fn run() {
             commands::get_storage_path,
             commands::set_storage_path,
             commands::check_file_exists,
+            commands::get_recent_paths,
             commands::create_address_book,
             commands::unlock_address_book,
             commands::lock_address_book,

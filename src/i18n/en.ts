@@ -18,6 +18,7 @@ const en: Translations = {
   unlock: "Unlock",
   create: "Create",
   addressBookLocation: "Address Book Location",
+  recentFiles: "Recent Files",
   open: "📂 Open...",
   saveAs: "💾 Save As...",
   default_: "↩ Default",

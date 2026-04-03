@@ -22,6 +22,7 @@ export interface Translations {
   unlock: string;
   create: string;
   addressBookLocation: string;
+  recentFiles: string;
   open: string;
   saveAs: string;
   default_: string;

@@ -8,6 +8,7 @@ export const setStoragePath = (path: string) =>
   invoke<void>("set_storage_path", { path });
 export const checkFileExists = (path: string) =>
   invoke<boolean>("check_file_exists", { path });
+export const getRecentPaths = () => invoke<string[]>("get_recent_paths");
 export const createAddressBook = (password: string) =>
   invoke<Folder>("create_address_book", { password });
 export const unlockAddressBook = (password: string) =>

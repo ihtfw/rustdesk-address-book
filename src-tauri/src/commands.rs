@@ -69,6 +69,11 @@ pub fn check_file_exists(path: String) -> bool {
 }
 
 #[tauri::command]
+pub fn get_recent_paths() -> Result<Vec<String>, AppError> {
+    storage::get_recent_paths()
+}
+
+#[tauri::command]
 pub fn create_address_book(
     state: tauri::State<'_, AppState>,
     password: String,
