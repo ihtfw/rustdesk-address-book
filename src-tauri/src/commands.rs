@@ -246,13 +246,18 @@ pub fn delete_node(state: tauri::State<'_, AppState>, id: Uuid) -> Result<(), Ap
 #[tauri::command]
 pub fn move_node(
     state: tauri::State<'_, AppState>,
-    node_id: Uuid,
-    new_parent_id: Uuid,
+    node_id: String,
+    new_parent_id: String,
     position: usize,
 ) -> Result<(), AppError> {
+    let node_uuid = Uuid::parse_str(&node_id)
+        .map_err(|e| AppError::General(format!("Invalid node ID '{}': {}", node_id, e)))?;
+    let parent_uuid = Uuid::parse_str(&new_parent_id)
+        .map_err(|e| AppError::General(format!("Invalid parent ID '{}': {}", new_parent_id, e)))?;
+
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
-    book.move_node(node_id, new_parent_id, position)?;
+    book.move_node(node_uuid, parent_uuid, position)?;
 
     drop(book_lock);
     get_book_and_save(&state)?;

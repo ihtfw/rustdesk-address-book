@@ -48,7 +48,9 @@ function TreeNodeItem({
   };
 
   const handleDragStart = (e: React.DragEvent) => {
+    console.log("dragStart:", node.id, node.name);
     e.dataTransfer.setData("text/plain", node.id);
+    e.dataTransfer.effectAllowed = "move";
     e.stopPropagation();
   };
 
@@ -67,6 +69,7 @@ function TreeNodeItem({
     e.stopPropagation();
     setDragOver(false);
     const draggedId = e.dataTransfer.getData("text/plain");
+    console.log("drop:", { draggedId, targetId: node.id, isFolder });
     if (draggedId && draggedId !== node.id && isFolder) {
       onDrop(draggedId, node.id, children.length);
     }

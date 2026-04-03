@@ -93,10 +93,12 @@ export default function MainPage({ initialRoot, onLock }: Props) {
     newParentId: string,
     position: number,
   ) => {
+    console.log("handleDrop:", { nodeId, newParentId, position });
     try {
       await api.moveNode(nodeId, newParentId, position);
       await refreshTree();
     } catch (err: unknown) {
+      console.error("moveNode error:", err);
       setError(String(err));
     }
   };
