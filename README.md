@@ -18,6 +18,12 @@ A workaround app for managing [RustDesk](https://rustdesk.com/) connections as a
 - 🔄 Auto-updates via GitHub Releases
 - 🖥️ Cross-platform (Windows, macOS, Linux)
 
+## Screenshots
+
+|                 Lock Screen                 |                Main Page                |               Settings                |
+| :-----------------------------------------: | :-------------------------------------: | :-----------------------------------: |
+| ![Lock Screen](screenshots/lock-screen.png) | ![Main Page](screenshots/main-page.png) | ![Settings](screenshots/settings.png) |
+
 ## Architecture
 
 ### Tech Stack
