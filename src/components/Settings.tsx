@@ -7,6 +7,7 @@ interface Props {
 
 export default function Settings({ onClose }: Props) {
   const [rustdeskPath, setRustdeskPath] = useState("");
+  const [autoUpdate, setAutoUpdate] = useState(true);
   const [oldPassword, setOldPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -18,7 +19,20 @@ export default function Settings({ onClose }: Props) {
       .getRustdeskPath()
       .then(setRustdeskPath)
       .catch(() => {});
+    api
+      .getAutoUpdate()
+      .then(setAutoUpdate)
+      .catch(() => {});
   }, []);
+
+  const handleAutoUpdateChange = async (checked: boolean) => {
+    setAutoUpdate(checked);
+    try {
+      await api.setAutoUpdate(checked);
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
 
   const handleSavePath = async () => {
     setError("");
@@ -96,6 +110,20 @@ export default function Settings({ onClose }: Props) {
                 Save
               </button>
             </div>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>Updates</h3>
+          <div className="form-group">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={autoUpdate}
+                onChange={(e) => handleAutoUpdateChange(e.target.checked)}
+              />
+              Automatically check for updates
+            </label>
           </div>
         </div>
 

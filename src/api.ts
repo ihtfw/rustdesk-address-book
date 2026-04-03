@@ -69,3 +69,8 @@ export const getRustdeskPath = () => invoke<string>("get_rustdesk_path");
 export const setRustdeskPath = (path: string) =>
   invoke<void>("set_rustdesk_path", { path });
 export const detectRustdesk = () => invoke<string>("detect_rustdesk");
+
+// Auto-update
+export const getAutoUpdate = () => invoke<boolean>("get_auto_update");
+export const setAutoUpdate = (enabled: boolean) =>
+  invoke<void>("set_auto_update", { enabled });

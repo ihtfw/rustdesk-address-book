@@ -363,3 +363,16 @@ pub fn detect_rustdesk() -> Result<String, AppError> {
         AppError::RustDeskNotFound("Could not auto-detect RustDesk installation".to_string())
     })
 }
+
+#[tauri::command]
+pub fn get_auto_update() -> Result<bool, AppError> {
+    let config = storage::load_config()?;
+    Ok(config.auto_update)
+}
+
+#[tauri::command]
+pub fn set_auto_update(enabled: bool) -> Result<(), AppError> {
+    let mut config = storage::load_config()?;
+    config.auto_update = enabled;
+    storage::save_config(&config)
+}

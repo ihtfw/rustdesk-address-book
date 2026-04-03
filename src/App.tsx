@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
 import type { Folder } from "./types";
 import * as api from "./api";
+import { check } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import LockScreen from "./components/LockScreen";
 import MainPage from "./components/MainPage";
 import "./App.css";
@@ -24,6 +26,27 @@ function App() {
   useEffect(() => {
     loadLockScreen();
   }, [loadLockScreen]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const enabled = await api.getAutoUpdate();
+        if (!enabled) return;
+        const update = await check();
+        if (update) {
+          const yes = window.confirm(
+            `Update ${update.version} is available. Download and install?`,
+          );
+          if (yes) {
+            await update.downloadAndInstall();
+            await relaunch();
+          }
+        }
+      } catch {
+        // silently ignore update check errors
+      }
+    })();
+  }, []);
 
   const handleUnlock = async (password: string) => {
     const root = await api.unlockAddressBook(password);

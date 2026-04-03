@@ -17,6 +17,13 @@ pub struct AppConfig {
     /// Custom path to the address book file. If None, uses default location.
     #[serde(default)]
     pub storage_path: Option<String>,
+    /// Whether to automatically check for updates. Defaults to true.
+    #[serde(default = "default_true")]
+    pub auto_update: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 /// Get the app config directory (always in the default location).
