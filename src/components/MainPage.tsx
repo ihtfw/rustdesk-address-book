@@ -56,11 +56,15 @@ export default function MainPage({ initialRoot, onLock }: Props) {
   };
 
   const handleConnect = async (connectionId: string) => {
+    console.log("handleConnect called with:", connectionId);
     try {
       setError("");
-      await api.connectToHost(connectionId);
+      const result = await api.connectToHost(connectionId);
+      console.log("connectToHost succeeded:", result);
     } catch (err: unknown) {
-      setError(String(err));
+      console.error("connectToHost error:", err);
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg || "Unknown error connecting");
     }
   };
 

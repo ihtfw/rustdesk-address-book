@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 use crate::errors::AppError;
 
@@ -64,8 +64,10 @@ pub fn connect(
         }
     }
 
-    // Spawn detached — we don't wait for RustDesk to exit
-    cmd.spawn()
+    cmd.stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn()
         .map_err(|e| AppError::General(format!("Failed to launch RustDesk: {e}")))?;
 
     Ok(())

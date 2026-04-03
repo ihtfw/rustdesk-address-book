@@ -57,7 +57,7 @@ export const moveNode = (
 
 // Connection
 export const connectToHost = (connectionId: string) =>
-  invoke<void>("connect", { connectionId });
+  invoke<string>("connect", { connectionId });
 
 // RustDesk path
 export const getRustdeskPath = () => invoke<string>("get_rustdesk_path");

@@ -262,34 +262,45 @@ pub fn move_node(
 // ─── Connection Launch Commands ──────────────────────────────────
 
 #[tauri::command]
-pub fn connect(state: tauri::State<'_, AppState>, connection_id: Uuid) -> Result<(), AppError> {
+pub fn connect(state: tauri::State<'_, AppState>, connection_id: String) -> Result<String, AppError> {
+    let uuid = Uuid::parse_str(&connection_id)
+        .map_err(|e| AppError::General(format!("Invalid connection ID '{}': {}", connection_id, e)))?;
+
     let book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_ref().ok_or(AppError::Locked)?;
 
     let conn = book
-        .find_connection(connection_id)
-        .ok_or_else(|| AppError::General("Connection not found".to_string()))?;
+        .find_connection(uuid)
+        .ok_or_else(|| AppError::General(format!("Connection not found: {}", connection_id)))?;
 
-    let rd_path_lock = state.rustdesk_path.lock().unwrap();
+    // Clone connection data before dropping the lock
+    let rustdesk_id = conn.rustdesk_id.clone();
+    let password = conn.password.clone();
+    drop(book_lock);
+
+    // Try to get cached path, or auto-detect
+    let mut rd_path_lock = state.rustdesk_path.lock().unwrap();
+    if rd_path_lock.is_none() {
+        *rd_path_lock = rustdesk::detect_path();
+    }
     let rd_path = rd_path_lock
         .as_ref()
         .ok_or_else(|| {
             AppError::RustDeskNotFound(
-                "RustDesk path not configured. Set it in Settings.".to_string(),
+                "RustDesk not found. Install RustDesk or set the path in Settings.".to_string(),
             )
         })?
         .clone();
-
-    drop(book_lock);
     drop(rd_path_lock);
 
-    let pw = if conn.password.is_empty() {
+    let pw = if password.is_empty() {
         None
     } else {
-        Some(conn.password.as_str())
+        Some(password.as_str())
     };
 
-    rustdesk::connect(&rd_path, &conn.rustdesk_id, pw)
+    rustdesk::connect(&rd_path, &rustdesk_id, pw)?;
+    Ok(format!("Launched RustDesk: {} -> {}", rd_path, rustdesk_id))
 }
 
 #[tauri::command]
