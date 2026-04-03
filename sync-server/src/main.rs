@@ -12,6 +12,8 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Mutex;
 use tower_http::cors::CorsLayer;
+use tracing::{info, error};
+use tracing_subscriber::fmt::writer::MakeWriterExt;
 
 // ── CLI ──
 
@@ -29,6 +31,10 @@ struct Cli {
     /// Path to SQLite database file
     #[arg(short, long, default_value = "sync.db")]
     db: String,
+
+    /// Directory for log files (default: current directory)
+    #[arg(long, default_value = ".")]
+    log_dir: String,
 }
 
 // ── Types ──
@@ -69,6 +75,7 @@ async fn pull(
     Query(query): Query<PullQuery>,
     State(db): State<Db>,
 ) -> Result<Json<PullResponse>, AppError> {
+    let start = std::time::Instant::now();
     let conn = db.lock().await;
     let mut stmt = conn
         .prepare("SELECT id, data FROM changes WHERE guid = ?1 AND id > ?2 ORDER BY id")
@@ -85,6 +92,8 @@ async fn pull(
         .collect::<Result<Vec<_>, _>>()
         .map_err(AppError::Db)?;
 
+    let elapsed = start.elapsed();
+    info!(guid = %guid, after = query.after, changes = changes.len(), elapsed_ms = elapsed.as_millis(), "pull");
     Ok(Json(PullResponse { changes }))
 }
 
@@ -93,6 +102,8 @@ async fn push(
     State(db): State<Db>,
     Json(body): Json<PushRequest>,
 ) -> Result<Json<PushResponse>, AppError> {
+    let start = std::time::Instant::now();
+    let data_len = body.data.len();
     let conn = db.lock().await;
     conn.execute(
         "INSERT INTO changes (guid, data, created_at) VALUES (?1, ?2, datetime('now'))",
@@ -101,6 +112,8 @@ async fn push(
     .map_err(AppError::Db)?;
 
     let id = conn.last_insert_rowid() as u64;
+    let elapsed = start.elapsed();
+    info!(guid = %guid, id = id, data_bytes = data_len, elapsed_ms = elapsed.as_millis(), "push");
     Ok(Json(PushResponse { id }))
 }
 
@@ -115,6 +128,7 @@ impl IntoResponse for AppError {
         let msg = match &self {
             AppError::Db(e) => format!("Database error: {e}"),
         };
+        error!("{}", msg);
         (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({ "error": msg }))).into_response()
     }
 }
@@ -140,6 +154,18 @@ fn init_db(path: &str) -> Connection {
 async fn main() {
     let cli = Cli::parse();
 
+    // Rolling daily log file, keep last 10 days
+    let file_appender = tracing_appender::rolling::daily(&cli.log_dir, "sync-server.log");
+    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
+    tracing_subscriber::fmt()
+        .with_writer(non_blocking.and(std::io::stdout))
+        .with_ansi(false)
+        .with_target(false)
+        .init();
+
+    // Clean up old log files (keep last 10 days)
+    cleanup_old_logs(&cli.log_dir, 10);
+
     let conn = init_db(&cli.db);
     let db: Db = Arc::new(Mutex::new(conn));
 
@@ -149,10 +175,27 @@ async fn main() {
         .with_state(db);
 
     let addr = format!("{}:{}", cli.bind, cli.port);
-    println!("Sync server listening on {addr}");
+    info!("Sync server listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(&addr)
         .await
         .expect("Failed to bind");
     axum::serve(listener, app).await.expect("Server error");
+}
+
+fn cleanup_old_logs(dir: &str, keep_days: u64) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    let cutoff = std::time::SystemTime::now() - std::time::Duration::from_secs(keep_days * 86400);
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if !name.starts_with("sync-server.log.") { continue; }
+        if let Ok(meta) = entry.metadata() {
+            if let Ok(modified) = meta.modified() {
+                if modified < cutoff {
+                    let _ = std::fs::remove_file(entry.path());
+                }
+            }
+        }
+    }
 }

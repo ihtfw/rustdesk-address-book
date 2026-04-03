@@ -45,6 +45,16 @@ fn get_config_dir() -> Result<PathBuf, AppError> {
     Ok(data_dir.join(APP_DIR_NAME))
 }
 
+/// Get log directory (inside config dir). Creates it if needed.
+pub fn get_log_dir() -> PathBuf {
+    let dir = dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(APP_DIR_NAME)
+        .join("logs");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
+}
+
 /// Load the app config.
 pub fn load_config() -> Result<AppConfig, AppError> {
     let path = get_config_dir()?.join(CONFIG_FILE);

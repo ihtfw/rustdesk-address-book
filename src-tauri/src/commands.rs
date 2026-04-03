@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::sync::Mutex;
 
 use chrono::Utc;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::crypto;
@@ -681,12 +682,15 @@ fn collect_nodes_flat(folder: &Folder) -> Vec<(TreeNode, Uuid)> {
     result
 }
 
-#[tauri::command]
-pub async fn sync_pull(
-    state: tauri::State<'_, AppState>,
-    subscription_id: String,
+// ── Private sync helpers (no save) ───────────────────────────────
+
+async fn do_sync_pull(
+    state: &AppState,
+    subscription_id: &str,
+    client: &reqwest::Client,
 ) -> Result<Folder, AppError> {
-    let sub_uuid = Uuid::parse_str(&subscription_id)
+    let total_start = std::time::Instant::now();
+    let sub_uuid = Uuid::parse_str(subscription_id)
         .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
 
     // Get subscription info
@@ -698,15 +702,19 @@ pub async fn sync_pull(
         (sub.url.clone(), sub.master_key.clone(), sub.folder_id, sub.last_id)
     };
 
+    info!(sub = %subscription_id, last_id = last_id, "sync_pull: starting");
+
     // GET changes from server
     let pull_url = format!("{}?after={}", url, last_id);
-    let client = reqwest::Client::new();
+    let http_start = std::time::Instant::now();
     let response = client.get(&pull_url)
         .send()
         .await
         .map_err(|e| AppError::General(format!("Sync pull failed: {}", e)))?;
+    let http_elapsed = http_start.elapsed();
 
     if !response.status().is_success() {
+        warn!(sub = %subscription_id, status = %response.status(), "sync_pull: server error");
         return Err(AppError::General(format!("Server returned {}", response.status())));
     }
 
@@ -714,22 +722,38 @@ pub async fn sync_pull(
         .await
         .map_err(|e| AppError::General(format!("Invalid server response: {}", e)))?;
 
+    info!(sub = %subscription_id, changes = pull_response.changes.len(), http_ms = http_elapsed.as_millis(), "sync_pull: received changes");
+
     // Apply each change
     let mut new_last_id = last_id;
     {
+        let apply_start = std::time::Instant::now();
         let mut book_lock = state.address_book.lock().unwrap();
         let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+
+        // Cache derived keys by salt to avoid repeated KDF (~250ms each)
+        let mut key_cache: std::collections::HashMap<String, [u8; 32]> = std::collections::HashMap::new();
 
         for entry in &pull_response.changes {
             // Decode and decrypt the change
             let blob = BASE64.decode(&entry.data)
                 .map_err(|e| AppError::General(format!("Invalid base64: {}", e)))?;
 
-            let plaintext = crypto::decrypt(&blob, &master_key)?;
+            let salt = crypto::extract_salt(&blob)?;
+            let key = if let Some(k) = key_cache.get(&salt) {
+                *k
+            } else {
+                let k = crypto::derive_key_with_salt(&master_key, &salt)?;
+                key_cache.insert(salt, k);
+                k
+            };
+
+            let plaintext = crypto::decrypt_with_key(&blob, &key)?;
             let event: SyncEvent = serde_json::from_slice(&plaintext)
                 .map_err(|e| AppError::General(format!("Invalid sync event: {}", e)))?;
 
             if event.version > SYNC_FORMAT_VERSION {
+                warn!(sub = %subscription_id, event_version = event.version, supported = SYNC_FORMAT_VERSION, "sync_pull: unsupported version");
                 return Err(AppError::General(format!(
                     "Sync event format version {} is newer than supported ({}). Please update the application.",
                     event.version, SYNC_FORMAT_VERSION
@@ -748,9 +772,13 @@ pub async fn sync_pull(
             sub.last_id = new_last_id;
             sub.last_synced = Some(Utc::now());
         }
+
+        let apply_elapsed = apply_start.elapsed();
+        info!(sub = %subscription_id, apply_ms = apply_elapsed.as_millis(), "sync_pull: applied changes");
     }
 
-    get_book_and_save(&state)?;
+    let total_elapsed = total_start.elapsed();
+    info!(sub = %subscription_id, total_ms = total_elapsed.as_millis(), "sync_pull: done (no save)");
 
     // Return the updated folder
     let book_lock = state.address_book.lock().unwrap();
@@ -764,12 +792,13 @@ pub async fn sync_pull(
     Ok(folder)
 }
 
-#[tauri::command]
-pub async fn sync_push(
-    state: tauri::State<'_, AppState>,
-    subscription_id: String,
+async fn do_sync_push(
+    state: &AppState,
+    subscription_id: &str,
+    client: &reqwest::Client,
 ) -> Result<(), AppError> {
-    let sub_uuid = Uuid::parse_str(&subscription_id)
+    let total_start = std::time::Instant::now();
+    let sub_uuid = Uuid::parse_str(subscription_id)
         .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
 
     // Collect data needed for push
@@ -787,7 +816,6 @@ pub async fn sync_push(
         )
     };
 
-    let client = reqwest::Client::new();
     let mut new_last_id = 0u64;
 
     // Collect events to send (outside the lock)
@@ -835,28 +863,42 @@ pub async fn sync_push(
         events = ev;
     }
 
-    // Send each event to server (outside the lock)
-    for event in &events {
-        let plaintext = serde_json::to_vec(event)
-            .map_err(|e| AppError::General(format!("Serialization failed: {}", e)))?;
-        let encrypted = crypto::encrypt(&plaintext, &master_key)?;
-        let encoded = BASE64.encode(&encrypted);
+    info!(sub = %subscription_id, events = events.len(), modified = modified_ids.len(), deleted = deleted_ids.len(), "sync_push: sending events");
 
-        let response = client.post(&url)
-            .json(&serde_json::json!({ "data": encoded }))
-            .send()
-            .await
-            .map_err(|e| AppError::General(format!("Sync push failed: {}", e)))?;
+    if !events.is_empty() {
+        // Derive key once and reuse for all events (avoids N × 250ms KDF)
+        let (sync_key, sync_salt) = crypto::make_key(&master_key)?;
 
-        if !response.status().is_success() {
-            return Err(AppError::General(format!("Server returned {}", response.status())));
-        }
+        // Send each event to server (outside the lock)
+        for (i, event) in events.iter().enumerate() {
+            let plaintext = serde_json::to_vec(event)
+                .map_err(|e| AppError::General(format!("Serialization failed: {}", e)))?;
+            let encrypt_start = std::time::Instant::now();
+            let encrypted = crypto::encrypt_with_key(&plaintext, &sync_key, &sync_salt)?;
+            let encrypt_elapsed = encrypt_start.elapsed();
+            let encoded = BASE64.encode(&encrypted);
 
-        let push_response: SyncPushResponse = response.json()
-            .await
-            .map_err(|e| AppError::General(format!("Invalid server response: {}", e)))?;
-        if push_response.id > new_last_id {
-            new_last_id = push_response.id;
+            let http_start = std::time::Instant::now();
+            let response = client.post(&url)
+                .json(&serde_json::json!({ "data": encoded }))
+                .send()
+                .await
+                .map_err(|e| AppError::General(format!("Sync push failed: {}", e)))?;
+            let http_elapsed = http_start.elapsed();
+
+            if !response.status().is_success() {
+                warn!(sub = %subscription_id, status = %response.status(), event_idx = i, "sync_push: server error");
+                return Err(AppError::General(format!("Server returned {}", response.status())));
+            }
+
+            let push_response: SyncPushResponse = response.json()
+                .await
+                .map_err(|e| AppError::General(format!("Invalid server response: {}", e)))?;
+            if push_response.id > new_last_id {
+                new_last_id = push_response.id;
+            }
+
+            info!(sub = %subscription_id, event_idx = i, encrypt_ms = encrypt_elapsed.as_millis(), http_ms = http_elapsed.as_millis(), data_bytes = encoded.len(), "sync_push: sent event");
         }
     }
 
@@ -874,6 +916,31 @@ pub async fn sync_push(
         }
     }
 
+    let total_elapsed = total_start.elapsed();
+    info!(sub = %subscription_id, total_ms = total_elapsed.as_millis(), "sync_push: done (no save)");
+    Ok(())
+}
+
+// ── Tauri sync commands ─────────────────────────────────────────
+
+#[tauri::command]
+pub async fn sync_pull(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+) -> Result<Folder, AppError> {
+    let client = reqwest::Client::new();
+    let folder = do_sync_pull(&state, &subscription_id, &client).await?;
+    get_book_and_save(&state)?;
+    Ok(folder)
+}
+
+#[tauri::command]
+pub async fn sync_push(
+    state: tauri::State<'_, AppState>,
+    subscription_id: String,
+) -> Result<(), AppError> {
+    let client = reqwest::Client::new();
+    do_sync_push(&state, &subscription_id, &client).await?;
     get_book_and_save(&state)?;
     Ok(())
 }
@@ -883,8 +950,19 @@ pub async fn sync_subscription(
     state: tauri::State<'_, AppState>,
     subscription_id: String,
 ) -> Result<Folder, AppError> {
-    // Pull first, then push
-    let folder = sync_pull(state.clone(), subscription_id.clone()).await?;
-    sync_push(state, subscription_id).await?;
+    let total_start = std::time::Instant::now();
+    let client = reqwest::Client::new();
+
+    // Pull first, then push — single save at the end
+    let folder = do_sync_pull(&state, &subscription_id, &client).await?;
+    do_sync_push(&state, &subscription_id, &client).await?;
+
+    let save_start = std::time::Instant::now();
+    get_book_and_save(&state)?;
+    let save_elapsed = save_start.elapsed();
+
+    let total_elapsed = total_start.elapsed();
+    info!(sub = %subscription_id, save_ms = save_elapsed.as_millis(), total_ms = total_elapsed.as_millis(), "sync: done");
+
     Ok(folder)
 }
