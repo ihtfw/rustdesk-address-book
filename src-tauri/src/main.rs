@@ -1,3 +1,6 @@
+// Prevent console window in GUI mode on Windows release builds
+#![cfg_attr(all(not(debug_assertions), windows), windows_subsystem = "windows")]
+
 use std::env;
 use std::process;
 
@@ -5,16 +8,16 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() > 1 && args[1] == "decode" {
+        // CLI mode — attach to parent console so output is visible
+        #[cfg(windows)]
+        unsafe {
+            extern "system" {
+                fn AttachConsole(process_id: u32) -> i32;
+            }
+            AttachConsole(u32::MAX); // ATTACH_PARENT_PROCESS
+        }
         run_decode(&args[2..]);
     } else {
-        // GUI mode — detach from console on Windows release builds
-        #[cfg(all(not(debug_assertions), windows))]
-        {
-            extern "system" {
-                fn FreeConsole() -> i32;
-            }
-            unsafe { FreeConsole(); }
-        }
         rustdesk_address_book_lib::run()
     }
 }
