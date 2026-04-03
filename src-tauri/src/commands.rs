@@ -874,8 +874,35 @@ async fn do_sync_pull(
     let http_elapsed = http_start.elapsed();
 
     if !response.status().is_success() {
-        warn!(sub = %subscription_id, status = %response.status(), "sync_pull: server error");
-        return Err(AppError::General(format!("Server returned {}", response.status())));
+        let status = response.status();
+        warn!(sub = %subscription_id, status = %status, "sync_pull: server error");
+
+        // On 401 Unauthorized (token revoked/invalid): clear subscription data
+        if status == reqwest::StatusCode::UNAUTHORIZED {
+            warn!(sub = %subscription_id, "sync_pull: 401 — clearing subscription tree and resetting cursor");
+            let mut book_lock = state.address_book.lock().unwrap();
+            if let Some(book) = book_lock.as_mut() {
+                // Clear the folder's children
+                if let Some(folder) = book.root.children.iter_mut().find_map(|c| match c {
+                    TreeNode::Folder(f) if f.id == folder_id => Some(f),
+                    _ => None,
+                }) {
+                    folder.children.clear();
+                }
+                // Reset subscription state
+                if let Some(sub) = book.subscriptions.iter_mut().find(|s| s.id == sub_uuid) {
+                    sub.last_id = 0;
+                    sub.modified_ids.clear();
+                    sub.deleted_ids.clear();
+                    sub.permissions = Some("ro".to_string());
+                    sub.access_token = None;
+                }
+            }
+            drop(book_lock);
+            let _ = get_book_and_save(state);
+        }
+
+        return Err(AppError::General(format!("Server returned {}", status)));
     }
 
     let pull_response: SyncPullResponse = response.json()
