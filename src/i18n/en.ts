@@ -122,6 +122,7 @@ const en: Translations = {
   syncSuccess: "Synced successfully!",
   syncError: "Sync failed",
   syncVersionError: "Sync format is newer than supported. Please update the application.",
+  syncReadOnly: "Read-only access — your changes cannot be synced to the server.",
   lastSynced: "Last synced",
   never: "never",
   removeSubscriptionConfirm: "Remove this subscription and its folder?",

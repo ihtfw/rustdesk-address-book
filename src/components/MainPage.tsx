@@ -90,11 +90,17 @@ export default function MainPage({
     async (subId: string) => {
       try {
         await api.syncSubscription(subId);
-      } catch {
-        // auto-sync errors are silent; user can retry manually
+      } catch (err: unknown) {
+        const msg = String(err);
+        // Surface permission errors — user must know they can't push
+        if (msg.includes("403") || msg.includes("401")) {
+          const display = msg.includes("403") ? t.syncReadOnly : msg;
+          setSyncErrors((prev) => new Map(prev).set(subId, display));
+        }
+        // Other errors (network, etc.) are silent; user can retry manually
       }
     },
-    [],
+    [t],
   );
 
   const syncErrorFolderIds = useMemo(() => {
@@ -539,7 +545,9 @@ export default function MainPage({
       const msg = String(err);
       const display = msg.includes("Please update the application")
         ? t.syncVersionError
-        : msg;
+        : msg.includes("403")
+          ? t.syncReadOnly
+          : msg;
       setSyncErrors((prev) => new Map(prev).set(subscriptionId, display));
     } finally {
       setSyncingIds((prev) => {
