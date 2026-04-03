@@ -122,17 +122,7 @@ function TreeNodeItem({
 
   return (
     <div className="tree-node">
-      <div
-        className={`tree-item ${isSelected && !checkMode ? "selected" : ""} ${dragOver ? "drag-over" : ""}`}
-        onClick={handleClick}
-        onDoubleClick={handleDoubleClick}
-        onContextMenu={(e) => { if (!checkMode) onContextMenu(e, node, parentId); }}
-        draggable={!checkMode}
-        onDragStart={handleDragStart}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDropOnFolder}
-      >
+      <div className={`tree-item-wrapper ${checkMode ? "tree-item-check" : ""}`}>
         {checkMode && (
           <input
             type="checkbox"
@@ -143,22 +133,40 @@ function TreeNodeItem({
             onClick={(e) => e.stopPropagation()}
           />
         )}
-        {isFolder && (
-          <span
-            className="tree-toggle"
-            onClick={(e) => {
-              e.stopPropagation();
-              setExpanded(!expanded);
-            }}
-          >
-            {expanded ? "▾" : "▸"}
-          </span>
-        )}
-        <span className="tree-icon">{isFolder ? "📁" : "🖥️"}</span>
-        <span className="tree-label">{node.name}</span>
-        {!isFolder && (node as any).rustdesk_id && (
-          <span className="tree-id">{(node as any).rustdesk_id}</span>
-        )}
+        <div
+          className={`tree-item ${isSelected && !checkMode ? "selected" : ""} ${dragOver ? "drag-over" : ""}`}
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          onContextMenu={(e) => { if (!checkMode) onContextMenu(e, node, parentId); }}
+          draggable={!checkMode}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDropOnFolder}
+        >
+          {isFolder && (
+            <span
+              className="tree-toggle"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded(!expanded);
+              }}
+            >
+              {expanded ? "▾" : "▸"}
+            </span>
+          )}
+          <span className="tree-icon">{isFolder ? "📁" : "🖥️"}</span>
+          <span className="tree-label">{node.name}</span>
+          {checkMode && (
+            <span className="tree-id">{!isFolder ? (node as any).rustdesk_id || "" : ""}</span>
+          )}
+          {checkMode && (
+            <span className="tree-desc">{node.description || ""}</span>
+          )}
+          {!checkMode && !isFolder && (node as any).rustdesk_id && (
+            <span className="tree-id">{(node as any).rustdesk_id}</span>
+          )}
+        </div>
       </div>
 
       {isFolder && expanded && children.length > 0 && (

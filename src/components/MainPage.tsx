@@ -647,7 +647,7 @@ export default function MainPage({
 
       {/* Main content */}
       <div className="content">
-        <div className="sidebar" onContextMenu={handleRootContextMenu}>
+        <div className={`sidebar ${exportMode ? "sidebar-full" : ""}`} onContextMenu={handleRootContextMenu}>
           <div className="search-box">
             <input
               type="text"
@@ -681,7 +681,7 @@ export default function MainPage({
             onCheck={handleCheck}
           />
         </div>
-        <div className="detail">{renderDetailPanel()}</div>
+        {!exportMode && <div className="detail">{renderDetailPanel()}</div>}
       </div>
 
       {/* Context menu */}

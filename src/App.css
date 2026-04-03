@@ -348,6 +348,12 @@ textarea {
   flex-direction: column;
 }
 
+.sidebar-full {
+  width: 100%;
+  max-width: none;
+  border-right: none;
+}
+
 .search-box {
   display: flex;
   flex-direction: column;
@@ -379,6 +385,7 @@ textarea {
 }
 
 /* ─── Tree View ─── */
+
 .tree-view {
   user-select: none;
 }
@@ -434,11 +441,23 @@ textarea {
   flex-shrink: 0;
 }
 
+.tree-item-wrapper {
+  display: flex;
+  align-items: center;
+}
+
+.tree-item-wrapper .tree-item {
+  flex: 1;
+  min-width: 0;
+}
+
 .tree-checkbox {
   margin: 0 4px 0 0;
   flex-shrink: 0;
   cursor: pointer;
   accent-color: var(--accent);
+  width: auto;
+  padding: 0;
 }
 
 .tree-label {
@@ -448,10 +467,24 @@ textarea {
   font-size: 13px;
 }
 
+.tree-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-left: 12px;
+  width: 200px;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
 .tree-id {
   font-size: 11px;
   color: var(--text-secondary);
-  margin-left: 8px;
+  margin-left: auto;
+  width: 90px;
+  text-align: right;
   flex-shrink: 0;
 }
 
