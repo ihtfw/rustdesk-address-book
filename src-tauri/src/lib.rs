@@ -41,6 +41,9 @@ pub fn run() {
             commands::set_auto_update,
             commands::get_language,
             commands::set_language,
+            commands::export_nodes,
+            commands::import_nodes,
+            commands::try_import,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

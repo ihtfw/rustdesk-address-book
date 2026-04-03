@@ -80,3 +80,11 @@ export const setAutoUpdate = (enabled: boolean) =>
 export const getLanguage = () => invoke<string>("get_language");
 export const setLanguage = (lang: string) =>
   invoke<void>("set_language", { lang });
+
+// Export / Import
+export const exportNodes = (nodeIds: string[], password: string, filePath: string) =>
+  invoke<void>("export_nodes", { nodeIds, password, filePath });
+export const importNodes = (filePath: string, password: string) =>
+  invoke<Folder>("import_nodes", { filePath, password });
+export const tryImport = (filePath: string) =>
+  invoke<boolean>("try_import", { filePath });

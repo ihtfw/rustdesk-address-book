@@ -89,6 +89,22 @@ const en: Translations = {
   detected: (path) => `Detected: ${path}`,
   newPasswordsDoNotMatch: "New passwords do not match",
   passwordChangedSuccessfully: "Password changed successfully",
+
+  export_: "⬇️ Export",
+  import_: "⬆️ Import",
+  exportConfirm: "✅ Confirm",
+  exportCancel: "✕ Cancel",
+  selectAll: "Select All",
+  deselectAll: "Deselect All",
+  exportPasswordTitle: "Export Password",
+  exportPasswordHint: "Leave empty to use current master password",
+  exportSuccess: "Exported successfully!",
+  importSuccess: "Imported successfully!",
+  importPasswordTitle: "Import Password",
+  importPasswordHint: "Enter the password used to encrypt this file",
+  noNodesSelected: "No items selected for export",
+  saveExportFile: "Save Export File",
+  selectImportFile: "Select Import File",
 };
 
 export default en;

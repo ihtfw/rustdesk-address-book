@@ -1,8 +1,10 @@
+use std::collections::HashSet;
 use std::sync::Mutex;
 
 use chrono::Utc;
 use uuid::Uuid;
 
+use crate::crypto;
 use crate::errors::AppError;
 use crate::models::{AddressBook, Connection, Folder, TreeNode};
 use crate::rustdesk;
@@ -427,4 +429,99 @@ pub fn set_language(lang: String) -> Result<(), AppError> {
     let mut config = storage::load_config()?;
     config.language = lang;
     storage::save_config(&config)
+}
+
+// ─── Export / Import Commands ────────────────────────────────────
+
+#[tauri::command]
+pub fn export_nodes(
+    state: tauri::State<'_, AppState>,
+    node_ids: Vec<String>,
+    password: String,
+    file_path: String,
+) -> Result<(), AppError> {
+    let book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_ref().ok_or(AppError::Locked)?;
+
+    let ids: HashSet<Uuid> = node_ids
+        .iter()
+        .map(|id| Uuid::parse_str(id))
+        .collect::<Result<_, _>>()
+        .map_err(|e| AppError::General(format!("Invalid node ID: {}", e)))?;
+
+    let export_book = book.extract_selected(&ids);
+    drop(book_lock);
+
+    // Use provided password, or fall back to current master password
+    let actual_password = if password.is_empty() {
+        let pw = state.master_password.lock().unwrap();
+        pw.as_ref().ok_or(AppError::Locked)?.clone()
+    } else {
+        password
+    };
+
+    let plaintext =
+        serde_json::to_vec(&export_book).map_err(|e| AppError::Storage(e.to_string()))?;
+    let blob = crypto::encrypt(&plaintext, &actual_password)?;
+
+    let path = std::path::PathBuf::from(&file_path);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| AppError::Storage(e.to_string()))?;
+    }
+    std::fs::write(&path, &blob).map_err(|e| AppError::Storage(e.to_string()))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn import_nodes(
+    state: tauri::State<'_, AppState>,
+    file_path: String,
+    password: String,
+) -> Result<Folder, AppError> {
+    // Use provided password, or fall back to current master password
+    let actual_password = if password.is_empty() {
+        let pw = state.master_password.lock().unwrap();
+        pw.as_ref().ok_or(AppError::Locked)?.clone()
+    } else {
+        password
+    };
+
+    // Decrypt the import file
+    let blob =
+        std::fs::read(&file_path).map_err(|e| AppError::Storage(e.to_string()))?;
+    let plaintext = crypto::decrypt(&blob, &actual_password)?;
+    let import_book: AddressBook =
+        serde_json::from_slice(&plaintext).map_err(|e| AppError::Storage(e.to_string()))?;
+
+    // Merge imported children into current book's root
+    let mut book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+
+    for child in import_book.root.children {
+        book.root.children.push(child);
+    }
+    let result = book.root.clone();
+
+    drop(book_lock);
+    get_book_and_save(&state)?;
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn try_import(
+    state: tauri::State<'_, AppState>,
+    file_path: String,
+) -> Result<bool, AppError> {
+    // Try to decrypt using current master password
+    let pw_lock = state.master_password.lock().unwrap();
+    let password = pw_lock.as_ref().ok_or(AppError::Locked)?.clone();
+    drop(pw_lock);
+
+    let blob =
+        std::fs::read(&file_path).map_err(|e| AppError::Storage(e.to_string()))?;
+    match crypto::decrypt(&blob, &password) {
+        Ok(_) => Ok(true),  // Current password works
+        Err(_) => Ok(false), // Need a different password
+    }
 }

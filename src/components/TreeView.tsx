@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import type { TreeNode, SelectedItem } from "../types";
 import { useI18n } from "../i18n";
 
@@ -14,6 +14,21 @@ interface Props {
   ) => void;
   selectedId: string | null;
   onDrop: (nodeId: string, newParentId: string, position: number) => void;
+  // Checkbox mode (for export)
+  checkMode?: boolean;
+  checkedIds?: Set<string>;
+  onCheck?: (id: string, checked: boolean) => void;
+}
+
+/** Collect all descendant IDs of a folder node */
+function collectAllIds(node: TreeNode): string[] {
+  const ids = [node.id];
+  if (node.type === "Folder") {
+    for (const child of node.children) {
+      ids.push(...collectAllIds(child));
+    }
+  }
+  return ids;
 }
 
 function TreeNodeItem({
@@ -24,6 +39,9 @@ function TreeNodeItem({
   onContextMenu,
   selectedId,
   onDrop,
+  checkMode,
+  checkedIds,
+  onCheck,
 }: Props & { node: TreeNode }) {
   const [expanded, setExpanded] = useState(true);
   const [dragOver, setDragOver] = useState(false);
@@ -32,7 +50,29 @@ function TreeNodeItem({
   const isSelected = node.id === selectedId;
   const children = isFolder ? node.children : [];
 
+  // Determine checkbox state for this node
+  const isChecked = checkedIds?.has(node.id) ?? false;
+  // For folders: partial = some but not all descendants checked
+  const isPartial = isFolder && !isChecked && children.some((c) => {
+    const ids = collectAllIds(c);
+    return ids.some((id) => checkedIds?.has(id));
+  });
+
+  const handleCheckChange = useCallback(() => {
+    if (!onCheck) return;
+    const newChecked = !isChecked;
+    // For folders, check/uncheck all descendants too
+    const allIds = collectAllIds(node);
+    for (const id of allIds) {
+      onCheck(id, newChecked);
+    }
+  }, [isChecked, node, onCheck]);
+
   const handleClick = () => {
+    if (checkMode) {
+      handleCheckChange();
+      return;
+    }
     if (isFolder) {
       onSelect({ kind: "folder", data: node as any });
     } else {
@@ -41,6 +81,7 @@ function TreeNodeItem({
   };
 
   const handleDoubleClick = () => {
+    if (checkMode) return;
     if (isFolder) {
       setExpanded(!expanded);
     } else {
@@ -49,6 +90,7 @@ function TreeNodeItem({
   };
 
   const handleDragStart = (e: React.DragEvent) => {
+    if (checkMode) { e.preventDefault(); return; }
     console.log("dragStart:", node.id, node.name);
     e.dataTransfer.setData("text/plain", node.id);
     e.dataTransfer.effectAllowed = "move";
@@ -56,6 +98,7 @@ function TreeNodeItem({
   };
 
   const handleDragOver = (e: React.DragEvent) => {
+    if (checkMode) return;
     if (isFolder) {
       e.preventDefault();
       e.stopPropagation();
@@ -66,6 +109,7 @@ function TreeNodeItem({
   const handleDragLeave = () => setDragOver(false);
 
   const handleDropOnFolder = (e: React.DragEvent) => {
+    if (checkMode) return;
     e.preventDefault();
     e.stopPropagation();
     setDragOver(false);
@@ -79,16 +123,26 @@ function TreeNodeItem({
   return (
     <div className="tree-node">
       <div
-        className={`tree-item ${isSelected ? "selected" : ""} ${dragOver ? "drag-over" : ""}`}
+        className={`tree-item ${isSelected && !checkMode ? "selected" : ""} ${dragOver ? "drag-over" : ""}`}
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
-        onContextMenu={(e) => onContextMenu(e, node, parentId)}
-        draggable
+        onContextMenu={(e) => { if (!checkMode) onContextMenu(e, node, parentId); }}
+        draggable={!checkMode}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDropOnFolder}
       >
+        {checkMode && (
+          <input
+            type="checkbox"
+            className="tree-checkbox"
+            checked={isChecked}
+            ref={(el) => { if (el) el.indeterminate = isPartial; }}
+            onChange={handleCheckChange}
+            onClick={(e) => e.stopPropagation()}
+          />
+        )}
         {isFolder && (
           <span
             className="tree-toggle"
@@ -120,6 +174,9 @@ function TreeNodeItem({
               onContextMenu={onContextMenu}
               selectedId={selectedId}
               onDrop={onDrop}
+              checkMode={checkMode}
+              checkedIds={checkedIds}
+              onCheck={onCheck}
             />
           ))}
         </div>
@@ -136,6 +193,9 @@ export default function TreeView({
   onContextMenu,
   selectedId,
   onDrop,
+  checkMode,
+  checkedIds,
+  onCheck,
 }: Props) {
   if (nodes.length === 0) {
     return <div className="tree-empty">{useI18n().noItemsYet}</div>;
@@ -154,6 +214,9 @@ export default function TreeView({
           onContextMenu={onContextMenu}
           selectedId={selectedId}
           onDrop={onDrop}
+          checkMode={checkMode}
+          checkedIds={checkedIds}
+          onCheck={onCheck}
         />
       ))}
     </div>

@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -85,6 +87,23 @@ impl AddressBook {
         parent.children.insert(pos, node);
         Ok(())
     }
+
+    /// Build a new AddressBook containing only the selected node IDs.
+    /// If a folder is selected, all its contents are included.
+    /// If a connection inside a non-selected folder is selected, the folder
+    /// hierarchy is preserved but only with selected connections.
+    pub fn extract_selected(&self, selected_ids: &HashSet<Uuid>) -> AddressBook {
+        let children = filter_selected(&self.root.children, selected_ids);
+        AddressBook {
+            version: self.version,
+            root: Folder {
+                id: Uuid::new_v4(),
+                name: "Root".to_string(),
+                description: String::new(),
+                children,
+            },
+        }
+    }
 }
 
 fn find_folder_recursive(folder: &mut Folder, target_id: Uuid) -> Option<&mut Folder> {
@@ -154,4 +173,38 @@ fn extract_node_with_info_recursive(
         }
     }
     None
+}
+
+/// Recursively filter tree nodes, keeping selected folders (with all contents)
+/// and selected connections. Non-selected folders are kept only if they contain
+/// selected descendants, but with only those descendants.
+fn filter_selected(nodes: &[TreeNode], selected: &HashSet<Uuid>) -> Vec<TreeNode> {
+    let mut result = Vec::new();
+    for node in nodes {
+        match node {
+            TreeNode::Folder(f) => {
+                if selected.contains(&f.id) {
+                    // Folder selected → include with all contents
+                    result.push(TreeNode::Folder(f.clone()));
+                } else {
+                    // Check if any descendant is selected
+                    let children = filter_selected(&f.children, selected);
+                    if !children.is_empty() {
+                        result.push(TreeNode::Folder(Folder {
+                            id: f.id,
+                            name: f.name.clone(),
+                            description: f.description.clone(),
+                            children,
+                        }));
+                    }
+                }
+            }
+            TreeNode::Connection(c) => {
+                if selected.contains(&c.id) {
+                    result.push(TreeNode::Connection(c.clone()));
+                }
+            }
+        }
+    }
+    result
 }

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { Folder, TreeNode, SelectedItem, Connection } from "../types";
 import * as api from "../api";
 import { useI18n, type Locale } from "../i18n";
+import { save, open } from "@tauri-apps/plugin-dialog";
 import TreeView from "../components/TreeView";
 import ConnectionForm from "../components/ConnectionForm";
 import FolderForm from "../components/FolderForm";
@@ -47,6 +48,15 @@ export default function MainPage({
   const [connectionSearch, setConnectionSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
   const t = useI18n();
+
+  // Export/Import state
+  const [exportMode, setExportMode] = useState(false);
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+  const [showExportPassword, setShowExportPassword] = useState(false);
+  const [exportPassword, setExportPassword] = useState("");
+  const [showImportPassword, setShowImportPassword] = useState(false);
+  const [importPassword, setImportPassword] = useState("");
+  const [importFilePath, setImportFilePath] = useState("");
 
   const refreshTree = useCallback(async () => {
     try {
@@ -298,6 +308,124 @@ export default function MainPage({
     }
   };
 
+  // ── Export / Import ──
+
+  const handleExportStart = () => {
+    setExportMode(true);
+    setCheckedIds(new Set());
+    setEditMode(null);
+  };
+
+  const handleExportCancel = () => {
+    setExportMode(false);
+    setCheckedIds(new Set());
+  };
+
+  const handleCheck = (id: string, checked: boolean) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const collectAllIds = (nodes: TreeNode[]): string[] => {
+    const ids: string[] = [];
+    for (const node of nodes) {
+      ids.push(node.id);
+      if (node.type === "Folder") ids.push(...collectAllIds(node.children));
+    }
+    return ids;
+  };
+
+  const handleSelectAll = () => {
+    const allIds = collectAllIds(root.children);
+    setCheckedIds(new Set(allIds));
+  };
+
+  const handleDeselectAll = () => {
+    setCheckedIds(new Set());
+  };
+
+  const handleExportConfirm = () => {
+    if (checkedIds.size === 0) {
+      setError(t.noNodesSelected);
+      return;
+    }
+    setExportPassword("");
+    setShowExportPassword(true);
+  };
+
+  const handleExportExecute = async () => {
+    try {
+      setError("");
+      const filePath = await save({
+        title: t.saveExportFile,
+        filters: [{ name: "Encrypted Address Book", extensions: ["enc"] }],
+      });
+      if (!filePath) return;
+
+      // If password is empty, backend will receive empty string.
+      // We pass current master password from the backend side if empty.
+      await api.exportNodes(
+        Array.from(checkedIds),
+        exportPassword, // empty = use current
+        filePath,
+      );
+
+      setShowExportPassword(false);
+      setExportMode(false);
+      setCheckedIds(new Set());
+      setToast(t.exportSuccess);
+      setTimeout(() => setToast(""), 3000);
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      setError("");
+      const filePath = await open({
+        title: t.selectImportFile,
+        filters: [{ name: "Encrypted Address Book", extensions: ["enc"] }],
+      });
+      if (!filePath) return;
+
+      // Try with current master password first
+      const sameKey = await api.tryImport(filePath);
+      if (sameKey) {
+        // Current password works — import directly with empty string
+        // Backend needs the actual password though, so we pass empty and handle in command
+        await api.importNodes(filePath, "");
+        await refreshTree();
+        setToast(t.importSuccess);
+        setTimeout(() => setToast(""), 3000);
+      } else {
+        // Need a different password
+        setImportFilePath(filePath);
+        setImportPassword("");
+        setShowImportPassword(true);
+      }
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
+
+  const handleImportExecute = async () => {
+    try {
+      setError("");
+      await api.importNodes(importFilePath, importPassword);
+      await refreshTree();
+      setShowImportPassword(false);
+      setToast(t.importSuccess);
+      setTimeout(() => setToast(""), 3000);
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
+
   // ── Render ──
 
   const renderDetailPanel = () => {
@@ -448,35 +576,64 @@ export default function MainPage({
     <div className="main-page">
       {/* Toolbar */}
       <div className="toolbar">
-        <div className="toolbar-left">
-          <button
-            className="btn btn-small"
-            onClick={() =>
-              setEditMode({ kind: "new-folder", parentId: root.id })
-            }
-          >
-            {t.folder}
-          </button>
-          <button
-            className="btn btn-small"
-            onClick={() =>
-              setEditMode({ kind: "new-connection", parentId: root.id })
-            }
-          >
-            {t.connection}
-          </button>
-        </div>
-        <div className="toolbar-right">
-          <button
-            className="btn btn-small"
-            onClick={() => setShowSettings(true)}
-          >
-            {t.settings}
-          </button>
-          <button className="btn btn-small" onClick={onLock}>
-            {t.lock}
-          </button>
-        </div>
+        {exportMode ? (
+          <>
+            <div className="toolbar-left">
+              <button className="btn btn-small" onClick={handleSelectAll}>
+                {t.selectAll}
+              </button>
+              <button className="btn btn-small" onClick={handleDeselectAll}>
+                {t.deselectAll}
+              </button>
+            </div>
+            <div className="toolbar-right">
+              <button className="btn btn-small btn-danger" onClick={handleExportCancel}>
+                {t.exportCancel}
+              </button>
+              <button className="btn btn-small btn-primary" onClick={handleExportConfirm}>
+                {t.exportConfirm}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="toolbar-left">
+              <button
+                className="btn btn-small"
+                onClick={() =>
+                  setEditMode({ kind: "new-folder", parentId: root.id })
+                }
+              >
+                {t.folder}
+              </button>
+              <button
+                className="btn btn-small"
+                onClick={() =>
+                  setEditMode({ kind: "new-connection", parentId: root.id })
+                }
+              >
+                {t.connection}
+              </button>
+            </div>
+            <div className="toolbar-right">
+              <button className="btn btn-small" onClick={handleExportStart}>
+                {t.export_}
+              </button>
+              <button className="btn btn-small" onClick={handleImport}>
+                {t.import_}
+              </button>
+              <button
+                className="btn btn-small"
+                onClick={() => setShowSettings(true)}
+              >
+                {t.settings}
+              </button>
+              <button className="btn btn-small" onClick={onLock}>
+                {t.lock}
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {error && (
@@ -519,6 +676,9 @@ export default function MainPage({
                   : null
             }
             onDrop={handleDrop}
+            checkMode={exportMode}
+            checkedIds={checkedIds}
+            onCheck={handleCheck}
           />
         </div>
         <div className="detail">{renderDetailPanel()}</div>
@@ -628,6 +788,64 @@ export default function MainPage({
           locale={locale}
           onLocaleChange={onLocaleChange}
         />
+      )}
+
+      {/* Export password modal */}
+      {showExportPassword && (
+        <div className="modal-overlay" onClick={() => setShowExportPassword(false)}>
+          <div className="modal modal-small" onClick={(e) => e.stopPropagation()}>
+            <h2>{t.exportPasswordTitle}</h2>
+            <p className="modal-hint">{t.exportPasswordHint}</p>
+            <div className="form-group">
+              <label>{t.password}</label>
+              <input
+                type="password"
+                value={exportPassword}
+                onChange={(e) => setExportPassword(e.target.value)}
+                placeholder={t.enterPassword}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleExportExecute(); }}
+              />
+            </div>
+            <div className="form-actions">
+              <button className="btn btn-action" onClick={() => setShowExportPassword(false)}>
+                ✕ {t.cancel}
+              </button>
+              <button className="btn btn-primary btn-action" onClick={handleExportExecute}>
+                💾 {t.exportConfirm}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import password modal */}
+      {showImportPassword && (
+        <div className="modal-overlay" onClick={() => setShowImportPassword(false)}>
+          <div className="modal modal-small" onClick={(e) => e.stopPropagation()}>
+            <h2>{t.importPasswordTitle}</h2>
+            <p className="modal-hint">{t.importPasswordHint}</p>
+            <div className="form-group">
+              <label>{t.password}</label>
+              <input
+                type="password"
+                value={importPassword}
+                onChange={(e) => setImportPassword(e.target.value)}
+                placeholder={t.enterPassword}
+                autoFocus
+                onKeyDown={(e) => { if (e.key === "Enter") handleImportExecute(); }}
+              />
+            </div>
+            <div className="form-actions">
+              <button className="btn btn-action" onClick={() => setShowImportPassword(false)}>
+                ✕ {t.cancel}
+              </button>
+              <button className="btn btn-primary btn-action" onClick={handleImportExecute}>
+                ⬆️ {t.import_}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast */}

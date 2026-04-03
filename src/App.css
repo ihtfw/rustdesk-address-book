@@ -342,6 +342,7 @@ textarea {
   border-right: 1px solid var(--border);
   background: var(--bg-secondary);
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 8px;
   display: flex;
   flex-direction: column;
@@ -431,6 +432,13 @@ textarea {
 .tree-icon {
   font-size: 14px;
   flex-shrink: 0;
+}
+
+.tree-checkbox {
+  margin: 0 4px 0 0;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
 }
 
 .tree-label {
@@ -624,6 +632,19 @@ h2 .btn-copy {
   width: 90vw;
   height: 90vh;
   overflow-y: auto;
+}
+
+.modal-small {
+  width: auto;
+  min-width: 380px;
+  max-width: 500px;
+  height: auto;
+}
+
+.modal-hint {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
 }
 
 .modal-header {

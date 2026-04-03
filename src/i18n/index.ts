@@ -99,6 +99,23 @@ export interface Translations {
   detected: (path: string) => string;
   newPasswordsDoNotMatch: string;
   passwordChangedSuccessfully: string;
+
+  // Export / Import
+  export_: string;
+  import_: string;
+  exportConfirm: string;
+  exportCancel: string;
+  selectAll: string;
+  deselectAll: string;
+  exportPasswordTitle: string;
+  exportPasswordHint: string;
+  exportSuccess: string;
+  importSuccess: string;
+  importPasswordTitle: string;
+  importPasswordHint: string;
+  noNodesSelected: string;
+  saveExportFile: string;
+  selectImportFile: string;
 }
 
 const I18nContext = createContext<Translations>(null!);

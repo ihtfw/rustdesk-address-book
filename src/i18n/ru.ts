@@ -90,6 +90,22 @@ const ru: Translations = {
   detected: (path) => `Обнаружен: ${path}`,
   newPasswordsDoNotMatch: "Новые пароли не совпадают",
   passwordChangedSuccessfully: "Пароль успешно изменён",
+
+  export_: "⬇️ Экспорт",
+  import_: "⬆️ Импорт",
+  exportConfirm: "✅ Подтвердить",
+  exportCancel: "✕ Отмена",
+  selectAll: "Выбрать всё",
+  deselectAll: "Снять всё",
+  exportPasswordTitle: "Пароль экспорта",
+  exportPasswordHint: "Оставьте пустым для использования текущего мастер-пароля",
+  exportSuccess: "Экспорт успешен!",
+  importSuccess: "Импорт успешен!",
+  importPasswordTitle: "Пароль импорта",
+  importPasswordHint: "Введите пароль, использованный для шифрования этого файла",
+  noNodesSelected: "Не выбрано ни одного элемента для экспорта",
+  saveExportFile: "Сохранить файл экспорта",
+  selectImportFile: "Выберите файл для импорта",
 };
 
 export default ru;
