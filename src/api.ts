@@ -3,6 +3,11 @@ import type { Folder, Connection } from "./types";
 
 // Auth
 export const addressBookExists = () => invoke<boolean>("address_book_exists");
+export const getStoragePath = () => invoke<string>("get_storage_path");
+export const setStoragePath = (path: string) =>
+  invoke<void>("set_storage_path", { path });
+export const checkFileExists = (path: string) =>
+  invoke<boolean>("check_file_exists", { path });
 export const createAddressBook = (password: string) =>
   invoke<Folder>("create_address_book", { password });
 export const unlockAddressBook = (password: string) =>

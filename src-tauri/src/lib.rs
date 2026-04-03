@@ -12,9 +12,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::new())
         .invoke_handler(tauri::generate_handler![
             commands::address_book_exists,
+            commands::get_storage_path,
+            commands::set_storage_path,
+            commands::check_file_exists,
             commands::create_address_book,
             commands::unlock_address_book,
             commands::lock_address_book,

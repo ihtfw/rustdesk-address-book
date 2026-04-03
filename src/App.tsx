@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { Folder } from "./types";
 import * as api from "./api";
 import LockScreen from "./components/LockScreen";
@@ -7,17 +7,23 @@ import "./App.css";
 
 type AppScreen =
   | { kind: "loading" }
-  | { kind: "lock"; exists: boolean }
+  | { kind: "lock"; exists: boolean; storagePath: string }
   | { kind: "main"; root: Folder };
 
 function App() {
   const [screen, setScreen] = useState<AppScreen>({ kind: "loading" });
 
-  useEffect(() => {
-    api.addressBookExists().then((exists) => {
-      setScreen({ kind: "lock", exists });
-    });
+  const loadLockScreen = useCallback(async () => {
+    const [exists, storagePath] = await Promise.all([
+      api.addressBookExists(),
+      api.getStoragePath(),
+    ]);
+    setScreen({ kind: "lock", exists, storagePath });
   }, []);
+
+  useEffect(() => {
+    loadLockScreen();
+  }, [loadLockScreen]);
 
   const handleUnlock = async (password: string) => {
     const root = await api.unlockAddressBook(password);
@@ -31,7 +37,7 @@ function App() {
 
   const handleLock = async () => {
     await api.lockAddressBook();
-    setScreen({ kind: "lock", exists: true });
+    await loadLockScreen();
   };
 
   if (screen.kind === "loading") {
@@ -42,8 +48,10 @@ function App() {
     return (
       <LockScreen
         exists={screen.exists}
+        storagePath={screen.storagePath}
         onUnlock={handleUnlock}
         onCreate={handleCreate}
+        onPathChanged={loadLockScreen}
       />
     );
   }

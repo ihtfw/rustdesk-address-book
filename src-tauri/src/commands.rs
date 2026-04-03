@@ -42,6 +42,21 @@ pub fn address_book_exists() -> Result<bool, AppError> {
 }
 
 #[tauri::command]
+pub fn get_storage_path() -> Result<String, AppError> {
+    storage::get_storage_path_display()
+}
+
+#[tauri::command]
+pub fn set_storage_path(path: String) -> Result<(), AppError> {
+    storage::set_storage_path(&path)
+}
+
+#[tauri::command]
+pub fn check_file_exists(path: String) -> bool {
+    storage::exists_at(&path)
+}
+
+#[tauri::command]
 pub fn create_address_book(
     state: tauri::State<'_, AppState>,
     password: String,

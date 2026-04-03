@@ -1,24 +1,89 @@
 use std::fs;
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 use crate::crypto;
 use crate::errors::AppError;
 use crate::models::AddressBook;
 
 const APP_DIR_NAME: &str = "rustdesk-address-book";
 const FILE_NAME: &str = "addressbook.enc";
+const CONFIG_FILE: &str = "config.json";
 
-/// Get the path to the encrypted address book file.
-pub fn get_file_path() -> Result<PathBuf, AppError> {
-    let data_dir = dirs::data_local_dir()
-        .ok_or_else(|| AppError::Storage("Cannot determine local data directory".to_string()))?;
-    Ok(data_dir.join(APP_DIR_NAME).join(FILE_NAME))
+/// Simple config stored alongside the app (not encrypted).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct AppConfig {
+    /// Custom path to the address book file. If None, uses default location.
+    #[serde(default)]
+    pub storage_path: Option<String>,
 }
 
-/// Check if an address book file already exists.
+/// Get the app config directory (always in the default location).
+fn get_config_dir() -> Result<PathBuf, AppError> {
+    let data_dir = dirs::data_local_dir()
+        .ok_or_else(|| AppError::Storage("Cannot determine local data directory".to_string()))?;
+    Ok(data_dir.join(APP_DIR_NAME))
+}
+
+/// Load the app config.
+pub fn load_config() -> Result<AppConfig, AppError> {
+    let path = get_config_dir()?.join(CONFIG_FILE);
+    if !path.exists() {
+        return Ok(AppConfig::default());
+    }
+    let data = fs::read_to_string(&path).map_err(|e| AppError::Storage(e.to_string()))?;
+    serde_json::from_str(&data).map_err(|e| AppError::Storage(e.to_string()))
+}
+
+/// Save the app config.
+pub fn save_config(config: &AppConfig) -> Result<(), AppError> {
+    let dir = get_config_dir()?;
+    fs::create_dir_all(&dir).map_err(|e| AppError::Storage(e.to_string()))?;
+    let data = serde_json::to_string_pretty(config).map_err(|e| AppError::Storage(e.to_string()))?;
+    fs::write(dir.join(CONFIG_FILE), data).map_err(|e| AppError::Storage(e.to_string()))
+}
+
+/// Get the default path to the encrypted address book file.
+pub fn default_file_path() -> Result<PathBuf, AppError> {
+    Ok(get_config_dir()?.join(FILE_NAME))
+}
+
+/// Get the path to the encrypted address book file (custom or default).
+pub fn get_file_path() -> Result<PathBuf, AppError> {
+    let config = load_config()?;
+    match config.storage_path {
+        Some(ref p) if !p.is_empty() => Ok(PathBuf::from(p)),
+        _ => default_file_path(),
+    }
+}
+
+/// Get the current storage path as a string (for display in UI).
+pub fn get_storage_path_display() -> Result<String, AppError> {
+    let path = get_file_path()?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+/// Set a custom storage path. If empty, revert to default.
+pub fn set_storage_path(path: &str) -> Result<(), AppError> {
+    let mut config = load_config()?;
+    if path.is_empty() {
+        config.storage_path = None;
+    } else {
+        config.storage_path = Some(path.to_string());
+    }
+    save_config(&config)
+}
+
+/// Check if an address book file already exists at the configured path.
 pub fn exists() -> Result<bool, AppError> {
     let path = get_file_path()?;
     Ok(path.exists())
+}
+
+/// Check if an address book file exists at a specific path.
+pub fn exists_at(file_path: &str) -> bool {
+    PathBuf::from(file_path).exists()
 }
 
 /// Create a new empty address book, encrypt it, and save to disk.
