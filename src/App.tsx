@@ -36,7 +36,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    (async () => {
+    const checkForUpdates = async () => {
       try {
         const enabled = await api.getAutoUpdate();
         if (!enabled) return;
@@ -53,7 +53,11 @@ function App() {
       } catch {
         // silently ignore update check errors
       }
-    })();
+    };
+
+    checkForUpdates();
+    const interval = setInterval(checkForUpdates, 4 * 60 * 60 * 1000); // every 4 hours
+    return () => clearInterval(interval);
   }, []);
 
   const handleUnlock = async (password: string) => {
