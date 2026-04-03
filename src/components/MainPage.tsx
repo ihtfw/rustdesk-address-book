@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import type { Folder, TreeNode, SelectedItem, Connection } from "../types";
 import * as api from "../api";
 import TreeView from "../components/TreeView";
@@ -32,6 +32,8 @@ export default function MainPage({ initialRoot, onLock }: Props) {
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [error, setError] = useState("");
+  const [folderSearch, setFolderSearch] = useState("");
+  const [connectionSearch, setConnectionSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
 
   const refreshTree = useCallback(async () => {
@@ -49,6 +51,69 @@ export default function MainPage({ initialRoot, onLock }: Props) {
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
   }, []);
+
+  // ── Search / Filter ──
+
+  const filteredNodes = useMemo(() => {
+    const fl = folderSearch.toLowerCase().trim();
+    const cl = connectionSearch.toLowerCase().trim();
+    if (!fl && !cl) return root.children;
+
+    // Step 1: Filter folders by name. Keep all connections inside matching folders.
+    // Non-matching folders are hidden along with all their contents,
+    // unless they contain a descendant folder that matches.
+    function filterByFolder(nodes: TreeNode[]): TreeNode[] {
+      const result: TreeNode[] = [];
+      for (const node of nodes) {
+        if (node.type === "Connection") {
+          // Keep connections at current level (they belong to an already-accepted parent)
+          result.push(node);
+        } else {
+          const matches = node.name.toLowerCase().includes(fl);
+          if (matches) {
+            // Folder matches — include it with ALL its original contents
+            result.push(node);
+          } else {
+            // Folder doesn't match — only keep it if it has descendant folders that match
+            // But strip out direct connections (they belong to non-matching folder)
+            const childFolders = node.children.filter(
+              (c) => c.type === "Folder",
+            );
+            const filteredChildren = filterByFolder(childFolders);
+            if (filteredChildren.length > 0) {
+              result.push({ ...node, children: filteredChildren });
+            }
+          }
+        }
+      }
+      return result;
+    }
+
+    // Step 2: Filter connections. Remove folders with no remaining connections.
+    function filterByConnection(nodes: TreeNode[]): TreeNode[] {
+      const result: TreeNode[] = [];
+      for (const node of nodes) {
+        if (node.type === "Connection") {
+          const match =
+            node.name.toLowerCase().includes(cl) ||
+            node.description.toLowerCase().includes(cl) ||
+            node.rustdesk_id.toLowerCase().includes(cl);
+          if (match) result.push(node);
+        } else {
+          const filteredChildren = filterByConnection(node.children);
+          if (filteredChildren.length > 0) {
+            result.push({ ...node, children: filteredChildren });
+          }
+        }
+      }
+      return result;
+    }
+
+    let nodes = root.children;
+    if (fl) nodes = filterByFolder(nodes);
+    if (cl) nodes = filterByConnection(nodes);
+    return nodes;
+  }, [root.children, folderSearch, connectionSearch]);
 
   const handleSelect = (item: SelectedItem) => {
     setSelected(item);
@@ -349,8 +414,22 @@ export default function MainPage({ initialRoot, onLock }: Props) {
       {/* Main content */}
       <div className="content">
         <div className="sidebar" onContextMenu={handleRootContextMenu}>
+          <div className="search-box">
+            <input
+              type="text"
+              placeholder="🔍 Filter folders..."
+              value={folderSearch}
+              onChange={(e) => setFolderSearch(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="🔍 Filter connections..."
+              value={connectionSearch}
+              onChange={(e) => setConnectionSearch(e.target.value)}
+            />
+          </div>
           <TreeView
-            nodes={root.children}
+            nodes={filteredNodes}
             parentId={root.id}
             onSelect={handleSelect}
             onConnect={handleConnect}
