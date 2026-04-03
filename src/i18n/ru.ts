@@ -44,6 +44,8 @@ const ru: Translations = {
   copyId: "Копировать ID",
   copyInfo: "Копировать инфо",
   copied: "Скопировано!",
+  deleted: "Удалено.",
+  undo: "Отменить",
 
   newFolder: "📁 Новая папка",
   newConnection: "🖥️ Новое подключение",

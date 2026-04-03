@@ -41,6 +41,8 @@ export default function MainPage({
   const [showSettings, setShowSettings] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [undoToast, setUndoToast] = useState<{path: string; icon: string} | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [folderSearch, setFolderSearch] = useState("");
   const [connectionSearch, setConnectionSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
@@ -242,13 +244,55 @@ export default function MainPage({
     }
   };
 
+  // Build full path to a node by ID, e.g. "Office / Servers / My PC"
+  const getNodeInfo = (nodeId: string): {path: string; icon: string} | null => {
+    const walk = (nodes: TreeNode[], trail: string[]): {path: string; icon: string} | null => {
+      for (const node of nodes) {
+        const cur = [...trail, node.name];
+        if (node.id === nodeId) {
+          return {
+            path: cur.join(" / "),
+            icon: node.type === "Folder" ? "📁" : "🖥️",
+          };
+        }
+        if (node.type === "Folder") {
+          const found = walk(node.children, cur);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+    return walk(root.children, []);
+  };
+
   const handleDelete = async (id: string) => {
     try {
       setError("");
+      const info = getNodeInfo(id);
       await api.deleteNode(id);
       await refreshTree();
       setSelected(null);
       setEditMode(null);
+
+      // Show undo toast for 5 seconds
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      setUndoToast(info);
+      undoTimerRef.current = setTimeout(() => {
+        setUndoToast(null);
+        undoTimerRef.current = null;
+      }, 5000);
+    } catch (err: unknown) {
+      setError(String(err));
+    }
+  };
+
+  const handleUndo = async () => {
+    try {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      setUndoToast(null);
+      undoTimerRef.current = null;
+      await api.undoDelete();
+      await refreshTree();
     } catch (err: unknown) {
       setError(String(err));
     }
@@ -588,6 +632,16 @@ export default function MainPage({
 
       {/* Toast */}
       {toast && <div className="toast">{toast}</div>}
+      {undoToast && (
+        <div className="toast toast-undo">
+          <span className="toast-undo-text">
+            🗑️ {t.deleted} {undoToast.icon} <strong>{undoToast.path}</strong>
+          </span>
+          <button className="btn btn-small btn-undo" onClick={handleUndo}>
+            ↩ {t.undo}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

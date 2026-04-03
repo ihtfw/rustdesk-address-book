@@ -60,9 +60,9 @@ impl AddressBook {
         find_connection_recursive(&self.root, connection_id)
     }
 
-    /// Delete a node (folder or connection) by ID. Returns true if found and removed.
-    pub fn delete_node(&mut self, node_id: Uuid) -> bool {
-        delete_node_recursive(&mut self.root, node_id)
+    /// Extract a node by ID, returning the node, its parent folder ID, and its index.
+    pub fn extract_node_with_info(&mut self, node_id: Uuid) -> Option<(TreeNode, Uuid, usize)> {
+        extract_node_with_info_recursive(&mut self.root, node_id)
     }
 
     /// Move a node to a new parent folder at a given position.
@@ -116,25 +116,6 @@ fn find_connection_recursive(folder: &Folder, target_id: Uuid) -> Option<Connect
     None
 }
 
-fn delete_node_recursive(folder: &mut Folder, target_id: Uuid) -> bool {
-    let before = folder.children.len();
-    folder.children.retain(|child| match child {
-        TreeNode::Folder(f) => f.id != target_id,
-        TreeNode::Connection(c) => c.id != target_id,
-    });
-    if folder.children.len() < before {
-        return true;
-    }
-    for child in &mut folder.children {
-        if let TreeNode::Folder(ref mut f) = child {
-            if delete_node_recursive(f, target_id) {
-                return true;
-            }
-        }
-    }
-    false
-}
-
 fn extract_node_recursive(folder: &mut Folder, target_id: Uuid) -> Option<TreeNode> {
     let pos = folder.children.iter().position(|child| match child {
         TreeNode::Folder(f) => f.id == target_id,
@@ -147,6 +128,28 @@ fn extract_node_recursive(folder: &mut Folder, target_id: Uuid) -> Option<TreeNo
         if let TreeNode::Folder(ref mut f) = child {
             if let Some(node) = extract_node_recursive(f, target_id) {
                 return Some(node);
+            }
+        }
+    }
+    None
+}
+
+fn extract_node_with_info_recursive(
+    folder: &mut Folder,
+    target_id: Uuid,
+) -> Option<(TreeNode, Uuid, usize)> {
+    let pos = folder.children.iter().position(|child| match child {
+        TreeNode::Folder(f) => f.id == target_id,
+        TreeNode::Connection(c) => c.id == target_id,
+    });
+    if let Some(idx) = pos {
+        let node = folder.children.remove(idx);
+        return Some((node, folder.id, idx));
+    }
+    for child in &mut folder.children {
+        if let TreeNode::Folder(ref mut f) = child {
+            if let Some(result) = extract_node_with_info_recursive(f, target_id) {
+                return Some(result);
             }
         }
     }

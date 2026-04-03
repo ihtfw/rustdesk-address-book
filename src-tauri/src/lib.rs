@@ -31,6 +31,7 @@ pub fn run() {
             commands::update_folder,
             commands::update_connection,
             commands::delete_node,
+            commands::undo_delete,
             commands::move_node,
             commands::connect,
             commands::get_rustdesk_path,

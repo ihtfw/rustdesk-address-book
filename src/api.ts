@@ -54,6 +54,7 @@ export const updateConnection = (
     password,
   });
 export const deleteNode = (id: string) => invoke<void>("delete_node", { id });
+export const undoDelete = () => invoke<void>("undo_delete");
 export const moveNode = (
   nodeId: string,
   newParentId: string,

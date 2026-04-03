@@ -8,11 +8,18 @@ use crate::models::{AddressBook, Connection, Folder, TreeNode};
 use crate::rustdesk;
 use crate::storage;
 
+pub struct DeletedNode {
+    pub node: TreeNode,
+    pub parent_id: Uuid,
+    pub position: usize,
+}
+
 /// Application state held in Tauri's managed state.
 pub struct AppState {
     pub address_book: Mutex<Option<AddressBook>>,
     pub master_password: Mutex<Option<String>>,
     pub rustdesk_path: Mutex<Option<String>>,
+    pub last_deleted: Mutex<Option<DeletedNode>>,
 }
 
 impl AppState {
@@ -21,6 +28,7 @@ impl AppState {
             address_book: Mutex::new(None),
             master_password: Mutex::new(None),
             rustdesk_path: Mutex::new(None),
+            last_deleted: Mutex::new(None),
         }
     }
 }
@@ -259,9 +267,40 @@ pub fn delete_node(state: tauri::State<'_, AppState>, id: String) -> Result<(), 
     let mut book_lock = state.address_book.lock().unwrap();
     let book = book_lock.as_mut().ok_or(AppError::Locked)?;
 
-    if !book.delete_node(uuid) {
-        return Err(AppError::General("Node not found".to_string()));
-    }
+    let (node, parent_id, position) = book
+        .extract_node_with_info(uuid)
+        .ok_or_else(|| AppError::General("Node not found".to_string()))?;
+
+    // Store for undo
+    *state.last_deleted.lock().unwrap() = Some(DeletedNode {
+        node,
+        parent_id,
+        position,
+    });
+
+    drop(book_lock);
+    get_book_and_save(&state)?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn undo_delete(state: tauri::State<'_, AppState>) -> Result<(), AppError> {
+    let deleted = state
+        .last_deleted
+        .lock()
+        .unwrap()
+        .take()
+        .ok_or_else(|| AppError::General("Nothing to undo".to_string()))?;
+
+    let mut book_lock = state.address_book.lock().unwrap();
+    let book = book_lock.as_mut().ok_or(AppError::Locked)?;
+
+    let parent = book
+        .find_folder_mut(deleted.parent_id)
+        .ok_or_else(|| AppError::General("Parent folder no longer exists".to_string()))?;
+
+    let pos = deleted.position.min(parent.children.len());
+    parent.children.insert(pos, deleted.node);
 
     drop(book_lock);
     get_book_and_save(&state)?;

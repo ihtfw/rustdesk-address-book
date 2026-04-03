@@ -527,6 +527,44 @@ h2 .btn-copy {
   }
 }
 
+.toast-undo {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #c0392b;
+  color: #fff;
+  border: 2px solid #e74c3c;
+  padding: 10px 22px;
+  font-size: 14px;
+  box-shadow: 0 6px 24px rgba(231, 76, 60, 0.45);
+}
+
+.toast-undo-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-undo {
+  background: #fff;
+  color: #c0392b;
+  border: none;
+  padding: 5px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-undo:hover {
+  background: #f1c40f;
+  color: #333;
+}
+
 /* ─── Context Menu ─── */
 .context-menu {
   position: fixed;

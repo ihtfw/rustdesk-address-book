@@ -43,6 +43,8 @@ const en: Translations = {
   copyId: "Copy ID",
   copyInfo: "Copy Info",
   copied: "Copied!",
+  deleted: "Deleted.",
+  undo: "Undo",
 
   newFolder: "📁 New Folder",
   newConnection: "🖥️ New Connection",

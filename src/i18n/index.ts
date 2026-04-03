@@ -49,6 +49,8 @@ export interface Translations {
   copyId: string;
   copyInfo: string;
   copied: string;
+  deleted: string;
+  undo: string;
 
   // Context menu
   newFolder: string;
