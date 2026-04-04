@@ -396,7 +396,7 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
                         <option value="ro">{t.readOnly}</option>
                       </select>
                     </div>
-                    <button className="btn btn-small btn-primary" onClick={handleCreateToken} disabled={!newTokenLabel.trim()}>
+                    <button className="btn btn-primary" onClick={handleCreateToken} disabled={!newTokenLabel.trim()} style={{ whiteSpace: "nowrap" }}>
                       {t.createToken}
                     </button>
                   </div>
