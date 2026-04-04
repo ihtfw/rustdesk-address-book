@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Mutex;
 
 use chrono::Utc;
@@ -25,6 +26,7 @@ pub struct AppState {
     pub master_password: Mutex<Option<String>>,
     pub rustdesk_path: Mutex<Option<String>>,
     pub last_deleted: Mutex<Option<DeletedNode>>,
+    pub current_file_path: Mutex<Option<PathBuf>>,
 }
 
 impl AppState {
@@ -34,6 +36,7 @@ impl AppState {
             master_password: Mutex::new(None),
             rustdesk_path: Mutex::new(None),
             last_deleted: Mutex::new(None),
+            current_file_path: Mutex::new(None),
         }
     }
 }
@@ -41,8 +44,10 @@ impl AppState {
 fn get_book_and_save(state: &AppState) -> Result<(), AppError> {
     let book = state.address_book.lock().unwrap();
     let pw = state.master_password.lock().unwrap();
-    match (book.as_ref(), pw.as_ref()) {
-        (Some(b), Some(p)) => storage::save(b, p),
+    let file_path = state.current_file_path.lock().unwrap();
+    match (book.as_ref(), pw.as_ref(), file_path.as_ref()) {
+        (Some(b), Some(p), Some(path)) => storage::save_to(b, p, path),
+        (Some(b), Some(p), None) => storage::save(b, p),
         _ => Err(AppError::Locked),
     }
 }
@@ -60,8 +65,14 @@ pub fn get_storage_path() -> Result<String, AppError> {
 }
 
 #[tauri::command]
-pub fn set_storage_path(path: String) -> Result<(), AppError> {
-    storage::set_storage_path(&path)
+pub fn set_storage_path(
+    state: tauri::State<'_, AppState>,
+    path: String,
+) -> Result<(), AppError> {
+    storage::set_storage_path(&path)?;
+    // Update cached file path so this instance keeps saving to the correct file
+    *state.current_file_path.lock().unwrap() = Some(storage::get_file_path()?);
+    Ok(())
 }
 
 #[tauri::command]
@@ -79,10 +90,12 @@ pub fn create_address_book(
     state: tauri::State<'_, AppState>,
     password: String,
 ) -> Result<Folder, AppError> {
+    let file_path = storage::get_file_path()?;
     let book = storage::create_new(&password)?;
     let root = book.root.clone();
     *state.address_book.lock().unwrap() = Some(book);
     *state.master_password.lock().unwrap() = Some(password);
+    *state.current_file_path.lock().unwrap() = Some(file_path);
 
     // Auto-detect RustDesk path
     if let Some(path) = rustdesk::detect_path() {
@@ -97,10 +110,12 @@ pub fn unlock_address_book(
     state: tauri::State<'_, AppState>,
     password: String,
 ) -> Result<Folder, AppError> {
+    let file_path = storage::get_file_path()?;
     let book = storage::open(&password)?;
     let root = book.root.clone();
     *state.address_book.lock().unwrap() = Some(book);
     *state.master_password.lock().unwrap() = Some(password);
+    *state.current_file_path.lock().unwrap() = Some(file_path);
 
     // Auto-detect RustDesk path
     if let Some(path) = rustdesk::detect_path() {
@@ -114,6 +129,7 @@ pub fn unlock_address_book(
 pub fn lock_address_book(state: tauri::State<'_, AppState>) -> Result<(), AppError> {
     *state.address_book.lock().unwrap() = None;
     *state.master_password.lock().unwrap() = None;
+    *state.current_file_path.lock().unwrap() = None;
     Ok(())
 }
 
@@ -123,7 +139,16 @@ pub fn change_password(
     old_password: String,
     new_password: String,
 ) -> Result<(), AppError> {
-    storage::change_password(&old_password, &new_password)?;
+    let file_path = state.current_file_path.lock().unwrap();
+    match file_path.as_ref() {
+        Some(path) => {
+            let book = storage::open_at(&old_password, path)?;
+            storage::save_to(&book, &new_password, path)?;
+        }
+        None => {
+            storage::change_password(&old_password, &new_password)?;
+        }
+    }
     *state.master_password.lock().unwrap() = Some(new_password);
     Ok(())
 }

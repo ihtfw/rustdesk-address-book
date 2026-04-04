@@ -142,7 +142,12 @@ pub fn create_new(password: &str) -> Result<AddressBook, AppError> {
 /// Open an existing address book by decrypting it with the password.
 pub fn open(password: &str) -> Result<AddressBook, AppError> {
     let path = get_file_path()?;
-    let blob = fs::read(&path).map_err(|e| AppError::Storage(e.to_string()))?;
+    open_at(password, &path)
+}
+
+/// Open an address book from a specific path.
+pub fn open_at(password: &str, path: &std::path::Path) -> Result<AddressBook, AppError> {
+    let blob = fs::read(path).map_err(|e| AppError::Storage(e.to_string()))?;
     let plaintext = crypto::decrypt(&blob, password)?;
     let book: AddressBook =
         serde_json::from_slice(&plaintext).map_err(|e| AppError::Storage(e.to_string()))?;
@@ -152,11 +157,15 @@ pub fn open(password: &str) -> Result<AddressBook, AppError> {
 
 /// Save the address book: serialize → encrypt → atomic write.
 pub fn save(book: &AddressBook, password: &str) -> Result<(), AppError> {
+    let path = get_file_path()?;
+    save_to(book, password, &path)
+}
+
+/// Save the address book to a specific path (avoids re-reading config.json).
+pub fn save_to(book: &AddressBook, password: &str, path: &std::path::Path) -> Result<(), AppError> {
     let plaintext =
         serde_json::to_vec(book).map_err(|e| AppError::Storage(e.to_string()))?;
     let blob = crypto::encrypt(&plaintext, password)?;
-
-    let path = get_file_path()?;
 
     // Ensure directory exists
     if let Some(parent) = path.parent() {
