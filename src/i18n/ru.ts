@@ -87,6 +87,8 @@ const ru: Translations = {
   confirmNewPassword: "Подтвердите новый пароль",
   changePassword: "Изменить пароль",
   language: "Язык",
+  syncInterval: "Интервал синхронизации",
+  syncIntervalMinutes: "мин.",
   rustdeskPathSaved: "Путь к RustDesk сохранён",
   detected: (path) => `Обнаружен: ${path}`,
   newPasswordsDoNotMatch: "Новые пароли не совпадают",

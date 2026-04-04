@@ -96,6 +96,8 @@ export interface Translations {
   confirmNewPassword: string;
   changePassword: string;
   language: string;
+  syncInterval: string;
+  syncIntervalMinutes: string;
   rustdeskPathSaved: string;
   detected: (path: string) => string;
   newPasswordsDoNotMatch: string;

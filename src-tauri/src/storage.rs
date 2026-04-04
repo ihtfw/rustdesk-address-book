@@ -28,6 +28,9 @@ pub struct AppConfig {
     /// Recently used address book file paths (most recent first).
     #[serde(default)]
     pub recent_paths: Vec<String>,
+    /// Auto-sync interval in minutes (1..=600). Defaults to 60.
+    #[serde(default = "default_sync_interval")]
+    pub sync_interval_minutes: u32,
 }
 
 fn default_true() -> bool {
@@ -36,6 +39,10 @@ fn default_true() -> bool {
 
 fn default_lang() -> String {
     "en".to_string()
+}
+
+fn default_sync_interval() -> u32 {
+    60
 }
 
 /// Get the app config directory (always in the default location).

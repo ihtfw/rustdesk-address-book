@@ -477,6 +477,20 @@ pub fn set_language(lang: String) -> Result<(), AppError> {
     storage::save_config(&config)
 }
 
+#[tauri::command]
+pub fn get_sync_interval() -> Result<u32, AppError> {
+    let config = storage::load_config()?;
+    Ok(config.sync_interval_minutes)
+}
+
+#[tauri::command]
+pub fn set_sync_interval(minutes: u32) -> Result<(), AppError> {
+    let clamped = minutes.clamp(1, 600);
+    let mut config = storage::load_config()?;
+    config.sync_interval_minutes = clamped;
+    storage::save_config(&config)
+}
+
 // ─── Export / Import Commands ────────────────────────────────────
 
 #[tauri::command]

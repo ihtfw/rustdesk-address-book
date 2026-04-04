@@ -82,6 +82,11 @@ export const getLanguage = () => invoke<string>("get_language");
 export const setLanguage = (lang: string) =>
   invoke<void>("set_language", { lang });
 
+// Sync interval
+export const getSyncInterval = () => invoke<number>("get_sync_interval");
+export const setSyncInterval = (minutes: number) =>
+  invoke<void>("set_sync_interval", { minutes });
+
 // Export / Import
 export const exportNodes = (nodeIds: string[], password: string, filePath: string) =>
   invoke<void>("export_nodes", { nodeIds, password, filePath });

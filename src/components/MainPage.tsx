@@ -61,6 +61,7 @@ export default function MainPage({
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
   const [syncErrors, setSyncErrors] = useState<Map<string, string>>(new Map());
+  const [syncIntervalMs, setSyncIntervalMs] = useState(60 * 60 * 1000);
 
   const subscriptionFolderIds = useMemo(
     () => new Set(subscriptions.map((s) => s.folder_id)),
@@ -586,17 +587,21 @@ export default function MainPage({
     }
   };
 
-  // Auto-sync every hour
+  // Auto-sync at configured interval
+  useEffect(() => {
+    api.getSyncInterval().then((m) => setSyncIntervalMs(m * 60 * 1000)).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (subscriptions.length === 0) return;
     const interval = setInterval(() => {
       for (const sub of subscriptions) {
         handleSync(sub.id);
       }
-    }, 3600000);
+    }, syncIntervalMs);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [subscriptions]);
+  }, [subscriptions, syncIntervalMs]);
 
   // ── Render ──
 
@@ -1030,6 +1035,7 @@ export default function MainPage({
           onClose={() => {
             setShowSettings(false);
             refreshTree();
+            api.getSyncInterval().then((m) => setSyncIntervalMs(m * 60 * 1000)).catch(() => {});
           }}
           locale={locale}
           onLocaleChange={onLocaleChange}

@@ -34,6 +34,7 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
   const [newTokenPerms, setNewTokenPerms] = useState("rw");
   const [createdTokenValue, setCreatedTokenValue] = useState<string | null>(null);
   const [addingSub, setAddingSub] = useState(false);
+  const [syncInterval, setSyncInterval] = useState(60);
   const t = useI18n();
 
   useEffect(() => {
@@ -48,6 +49,10 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
     api
       .getSubscriptions()
       .then(setSubscriptions)
+      .catch(() => {});
+    api
+      .getSyncInterval()
+      .then(setSyncInterval)
       .catch(() => {});
   }, []);
 
@@ -297,6 +302,25 @@ export default function Settings({ onClose, locale, onLocaleChange }: Props) {
                 </option>
               ))}
             </select>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h3>{t.syncInterval}</h3>
+          <div className="form-group" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <input
+              type="number"
+              min={1}
+              max={600}
+              value={syncInterval}
+              onChange={(e) => {
+                const v = Math.max(1, Math.min(600, Number(e.target.value) || 1));
+                setSyncInterval(v);
+                api.setSyncInterval(v).catch(() => {});
+              }}
+              style={{ width: 80 }}
+            />
+            <span>{t.syncIntervalMinutes}</span>
           </div>
         </div>
 

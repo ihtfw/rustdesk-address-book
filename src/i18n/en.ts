@@ -86,6 +86,8 @@ const en: Translations = {
   confirmNewPassword: "Confirm New Password",
   changePassword: "Change Password",
   language: "Language",
+  syncInterval: "Sync Interval",
+  syncIntervalMinutes: "minutes",
   rustdeskPathSaved: "RustDesk path saved",
   detected: (path) => `Detected: ${path}`,
   newPasswordsDoNotMatch: "New passwords do not match",
