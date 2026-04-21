@@ -365,8 +365,41 @@ textarea {
 
 .toolbar-left .btn,
 .toolbar-right .btn {
-  min-width: 120px;
+  min-width: 40px;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
   text-align: center;
+}
+
+.toolbar-icon-btn {
+  position: relative;
+}
+
+.toolbar-icon-btn::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.toolbar-icon-btn:hover::after,
+.toolbar-icon-btn:focus-visible::after {
+  opacity: 1;
+  visibility: visible;
 }
 
 .content {

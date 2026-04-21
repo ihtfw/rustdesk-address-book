@@ -799,19 +799,39 @@ export default function MainPage({
         {exportMode ? (
           <>
             <div className="toolbar-left">
-              <button className="btn btn-small" onClick={handleSelectAll}>
-                {t.selectAll}
+              <button
+                className="btn btn-small toolbar-icon-btn"
+                onClick={handleSelectAll}
+                data-tooltip={t.selectAll}
+                aria-label={t.selectAll}
+              >
+                ☑️
               </button>
-              <button className="btn btn-small" onClick={handleDeselectAll}>
-                {t.deselectAll}
+              <button
+                className="btn btn-small toolbar-icon-btn"
+                onClick={handleDeselectAll}
+                data-tooltip={t.deselectAll}
+                aria-label={t.deselectAll}
+              >
+                ◻️
               </button>
             </div>
             <div className="toolbar-right">
-              <button className="btn btn-small btn-danger" onClick={handleExportCancel}>
-                {t.exportCancel}
+              <button
+                className="btn btn-small btn-danger toolbar-icon-btn"
+                onClick={handleExportCancel}
+                data-tooltip={t.toolbarExportCancel}
+                aria-label={t.toolbarExportCancel}
+              >
+                ✕
               </button>
-              <button className="btn btn-small btn-primary" onClick={handleExportConfirm}>
-                {t.exportConfirm}
+              <button
+                className="btn btn-small btn-primary toolbar-icon-btn"
+                onClick={handleExportConfirm}
+                data-tooltip={t.toolbarExportConfirm}
+                aria-label={t.toolbarExportConfirm}
+              >
+                ✅
               </button>
             </div>
           </>
@@ -819,37 +839,58 @@ export default function MainPage({
           <>
             <div className="toolbar-left">
               <button
-                className="btn btn-small"
+                className="btn btn-small toolbar-icon-btn"
                 onClick={() =>
                   setEditMode({ kind: "new-folder", parentId: root.id })
                 }
+                data-tooltip={t.toolbarNewFolder}
+                aria-label={t.toolbarNewFolder}
               >
-                {t.folder}
+                📁
               </button>
               <button
-                className="btn btn-small"
+                className="btn btn-small toolbar-icon-btn"
                 onClick={() =>
                   setEditMode({ kind: "new-connection", parentId: root.id })
                 }
+                data-tooltip={t.toolbarNewConnection}
+                aria-label={t.toolbarNewConnection}
               >
-                {t.connection}
+                🖥️
               </button>
             </div>
             <div className="toolbar-right">
-              <button className="btn btn-small" onClick={handleExportStart}>
-                {t.export_}
-              </button>
-              <button className="btn btn-small" onClick={handleImport}>
-                {t.import_}
+              <button
+                className="btn btn-small toolbar-icon-btn"
+                onClick={handleExportStart}
+                data-tooltip={t.toolbarExport}
+                aria-label={t.toolbarExport}
+              >
+                ⬇️
               </button>
               <button
-                className="btn btn-small"
-                onClick={() => setShowSettings(true)}
+                className="btn btn-small toolbar-icon-btn"
+                onClick={handleImport}
+                data-tooltip={t.toolbarImport}
+                aria-label={t.toolbarImport}
               >
-                {t.settings}
+                ⬆️
               </button>
-              <button className="btn btn-small" onClick={onLock}>
-                {t.lock}
+              <button
+                className="btn btn-small toolbar-icon-btn"
+                onClick={() => setShowSettings(true)}
+                data-tooltip={t.toolbarSettings}
+                aria-label={t.toolbarSettings}
+              >
+                ⚙️
+              </button>
+              <button
+                className="btn btn-small toolbar-icon-btn"
+                onClick={onLock}
+                data-tooltip={t.toolbarLock}
+                aria-label={t.toolbarLock}
+              >
+                🔒
               </button>
             </div>
           </>

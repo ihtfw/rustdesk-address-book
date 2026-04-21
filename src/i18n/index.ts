@@ -111,6 +111,14 @@ export interface Translations {
   exportCancel: string;
   selectAll: string;
   deselectAll: string;
+  toolbarNewFolder: string;
+  toolbarNewConnection: string;
+  toolbarExport: string;
+  toolbarImport: string;
+  toolbarSettings: string;
+  toolbarLock: string;
+  toolbarExportCancel: string;
+  toolbarExportConfirm: string;
   exportPasswordTitle: string;
   exportPasswordHint: string;
   exportSuccess: string;
