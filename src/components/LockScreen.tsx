@@ -23,10 +23,15 @@ export default function LockScreen({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentPath, setCurrentPath] = useState(storagePath);
+  const [recentPaths, setRecentPaths] = useState<string[]>([]);
   const t = useI18n();
 
   useEffect(() => {
     setCurrentPath(storagePath);
+  }, [storagePath]);
+
+  useEffect(() => {
+    api.getRecentPaths().then(setRecentPaths).catch(() => {});
   }, [storagePath]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,6 +158,29 @@ export default function LockScreen({
           <div className="storage-path-display" title={currentPath}>
             {currentPath}
           </div>
+          {recentPaths.length > 0 && (
+            <div className="recent-paths">
+              <label>{t.recentFiles}</label>
+              <select
+                value={currentPath}
+                onChange={async (e) => {
+                  const path = e.target.value;
+                  await api.setStoragePath(path);
+                  setCurrentPath(path);
+                  onPathChanged();
+                }}
+              >
+                {!recentPaths.includes(currentPath) && (
+                  <option value={currentPath}>{currentPath}</option>
+                )}
+                {recentPaths.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="storage-path-actions">
             <button
               type="button"

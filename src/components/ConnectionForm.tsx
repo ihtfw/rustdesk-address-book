@@ -12,6 +12,7 @@ interface Props {
   }) => void;
   onCancel: () => void;
   onConnect?: () => void;
+  disabled?: boolean;
 }
 
 export default function ConnectionForm({
@@ -19,6 +20,7 @@ export default function ConnectionForm({
   onSave,
   onCancel,
   onConnect,
+  disabled,
 }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -58,6 +60,7 @@ export default function ConnectionForm({
     <div className="detail-panel">
       <h2>{isEdit ? t.editConnectionTitle : t.newConnectionTitle}</h2>
       <form onSubmit={handleSubmit}>
+        <fieldset disabled={disabled} style={{ border: "none", padding: 0, margin: 0 }}>
         <div className="form-group">
           <label htmlFor="conn-name">{t.name}</label>
           <input
@@ -129,6 +132,7 @@ export default function ConnectionForm({
             </button>
           )}
         </div>
+        </fieldset>
       </form>
     </div>
   );

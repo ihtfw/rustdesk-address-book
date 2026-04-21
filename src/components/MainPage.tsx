@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import type { Folder, TreeNode, SelectedItem, Connection } from "../types";
+import type { Folder, TreeNode, SelectedItem, Connection, Subscription } from "../types";
 import * as api from "../api";
 import { useI18n, type Locale } from "../i18n";
 import { save, open } from "@tauri-apps/plugin-dialog";
@@ -47,6 +47,7 @@ export default function MainPage({
   const [folderSearch, setFolderSearch] = useState("");
   const [connectionSearch, setConnectionSearch] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
+  const [saving, setSaving] = useState(false);
   const t = useI18n();
 
   // Export/Import state
@@ -57,11 +58,90 @@ export default function MainPage({
   const [showImportPassword, setShowImportPassword] = useState(false);
   const [importPassword, setImportPassword] = useState("");
   const [importFilePath, setImportFilePath] = useState("");
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [syncingIds, setSyncingIds] = useState<Set<string>>(new Set());
+  const [syncErrors, setSyncErrors] = useState<Map<string, string>>(new Map());
+  const [syncIntervalMs, setSyncIntervalMs] = useState(60 * 60 * 1000);
+
+  const subscriptionFolderIds = useMemo(
+    () => new Set(subscriptions.map((s) => s.folder_id)),
+    [subscriptions],
+  );
+
+  // Set of folder IDs belonging to read-only subscriptions
+  const readOnlyFolderIds = useMemo(
+    () => new Set(subscriptions.filter((s) => s.permissions === "ro").map((s) => s.folder_id)),
+    [subscriptions],
+  );
+
+  // Find which subscription a node belongs to (if any)
+  const findSubscriptionForNode = useCallback(
+    (nodeId: string): Subscription | null => {
+      const isInside = (node: TreeNode, id: string): boolean => {
+        if (node.id === id) return true;
+        if (node.type === "Folder")
+          return node.children.some((c) => isInside(c, id));
+        return false;
+      };
+      for (const sub of subscriptions) {
+        const folder = root.children.find((c) => c.id === sub.folder_id);
+        if (folder && isInside(folder, nodeId)) return sub;
+      }
+      return null;
+    },
+    [subscriptions, root],
+  );
+
+  // Check if a node is inside a read-only subscription
+  const isNodeReadOnly = useCallback(
+    (nodeId: string): boolean => {
+      const sub = findSubscriptionForNode(nodeId);
+      return sub?.permissions === "ro";
+    },
+    [findSubscriptionForNode],
+  );
+
+  // Sync a subscription silently (no error toast, used for auto-sync after mutations)
+  const syncQuiet = useCallback(
+    async (subId: string) => {
+      try {
+        await api.syncSubscription(subId);
+      } catch (err: unknown) {
+        const msg = String(err);
+        // Surface permission errors — user must know they can't push
+        if (msg.includes("403") || msg.includes("401")) {
+          const display = msg.includes("403") ? t.syncReadOnly : msg;
+          setSyncErrors((prev) => new Map(prev).set(subId, display));
+          // 401 clears data on backend — reload tree + subscriptions
+          if (msg.includes("401")) {
+            try {
+              const tree = await api.getTree();
+              setRoot(tree);
+              const subs = await api.getSubscriptions();
+              setSubscriptions(subs);
+            } catch { /* ignore */ }
+          }
+        }
+        // Other errors (network, etc.) are silent; user can retry manually
+      }
+    },
+    [t],
+  );
+
+  const syncErrorFolderIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const sub of subscriptions) {
+      if (syncErrors.has(sub.id)) ids.add(sub.folder_id);
+    }
+    return ids;
+  }, [subscriptions, syncErrors]);
 
   const refreshTree = useCallback(async () => {
     try {
       const tree = await api.getTree();
       setRoot(tree);
+      const subs = await api.getSubscriptions();
+      setSubscriptions(subs);
     } catch (err: unknown) {
       setError(String(err));
     }
@@ -72,6 +152,30 @@ export default function MainPage({
     const handler = () => setContextMenu(null);
     document.addEventListener("click", handler);
     return () => document.removeEventListener("click", handler);
+  }, []);
+
+  // Adjust context menu position if it overflows the viewport
+  useEffect(() => {
+    if (!contextMenu || !menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    let { x, y } = contextMenu;
+    let adjusted = false;
+    if (rect.bottom > window.innerHeight) {
+      y = Math.max(0, y - rect.height);
+      adjusted = true;
+    }
+    if (rect.right > window.innerWidth) {
+      x = Math.max(0, x - rect.width);
+      adjusted = true;
+    }
+    if (adjusted) {
+      setContextMenu((prev) => prev && { ...prev, x, y });
+    }
+  }, [contextMenu]);
+
+  // Load subscriptions on mount
+  useEffect(() => {
+    api.getSubscriptions().then(setSubscriptions).catch(() => {});
   }, []);
 
   // ── Search / Filter ──
@@ -181,8 +285,14 @@ export default function MainPage({
     position: number,
   ) => {
     console.log("handleDrop:", { nodeId, newParentId, position });
+    // Block drag-and-drop for read-only subscription nodes
+    if (isNodeReadOnly(nodeId) || isNodeReadOnly(newParentId)) return;
     try {
+      const sub =
+        findSubscriptionForNode(nodeId) ||
+        findSubscriptionForNode(newParentId);
       await api.moveNode(nodeId, newParentId, position);
+      if (sub) await syncQuiet(sub.id);
       await refreshTree();
     } catch (err: unknown) {
       console.error("moveNode error:", err);
@@ -196,9 +306,13 @@ export default function MainPage({
     name: string;
     description: string;
   }) => {
+    if (saving) return;
+    setSaving(true);
     try {
       setError("");
+      let subToSync: Subscription | null = null;
       if (editMode?.kind === "new-folder") {
+        subToSync = findSubscriptionForNode(editMode.parentId);
         const folder = await api.addFolder(
           editMode.parentId,
           data.name,
@@ -206,6 +320,7 @@ export default function MainPage({
         );
         setSelected({ kind: "folder", data: folder });
       } else if (editMode?.kind === "edit-folder") {
+        subToSync = findSubscriptionForNode(editMode.folder.id);
         const folder = await api.updateFolder(
           editMode.folder.id,
           data.name,
@@ -213,10 +328,13 @@ export default function MainPage({
         );
         setSelected({ kind: "folder", data: folder });
       }
+      if (subToSync) await syncQuiet(subToSync.id);
       await refreshTree();
       setEditMode(null);
     } catch (err: unknown) {
       setError(String(err));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -226,9 +344,13 @@ export default function MainPage({
     rustdesk_id: string;
     password: string;
   }) => {
+    if (saving) return;
+    setSaving(true);
     try {
       setError("");
+      let subToSync: Subscription | null = null;
       if (editMode?.kind === "new-connection") {
+        subToSync = findSubscriptionForNode(editMode.parentId);
         const conn = await api.addConnection(
           editMode.parentId,
           data.name,
@@ -238,6 +360,7 @@ export default function MainPage({
         );
         setSelected({ kind: "connection", data: conn });
       } else if (editMode?.kind === "edit-connection") {
+        subToSync = findSubscriptionForNode(editMode.connection.id);
         const conn = await api.updateConnection(
           editMode.connection.id,
           data.name,
@@ -247,10 +370,13 @@ export default function MainPage({
         );
         setSelected({ kind: "connection", data: conn });
       }
+      if (subToSync) await syncQuiet(subToSync.id);
       await refreshTree();
       setEditMode(null);
     } catch (err: unknown) {
       setError(String(err));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -279,7 +405,9 @@ export default function MainPage({
     try {
       setError("");
       const info = getNodeInfo(id);
+      const subToSync = findSubscriptionForNode(id);
       await api.deleteNode(id);
+      if (subToSync) await syncQuiet(subToSync.id);
       await refreshTree();
       setSelected(null);
       setEditMode(null);
@@ -426,6 +554,58 @@ export default function MainPage({
     }
   };
 
+  // ── Sync ──
+
+  const handleSync = async (subscriptionId: string) => {
+    setSyncingIds((prev) => new Set(prev).add(subscriptionId));
+    setSyncErrors((prev) => {
+      const next = new Map(prev);
+      next.delete(subscriptionId);
+      return next;
+    });
+    try {
+      const result = await api.syncSubscription(subscriptionId);
+      await refreshTree();
+      const msg = result.pulled > 0 || result.pushed > 0
+        ? t.syncSuccess
+        : t.syncUpToDate;
+      setToast(msg);
+      setTimeout(() => setToast(""), 3000);
+    } catch (err: unknown) {
+      const msg = String(err);
+      const display = msg.includes("Please update the application")
+        ? t.syncVersionError
+        : msg.includes("403")
+          ? t.syncReadOnly
+          : msg;
+      setSyncErrors((prev) => new Map(prev).set(subscriptionId, display));
+      // 401 clears data on backend — refresh tree to reflect it
+      if (msg.includes("401")) await refreshTree();
+    } finally {
+      setSyncingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(subscriptionId);
+        return next;
+      });
+    }
+  };
+
+  // Auto-sync at configured interval
+  useEffect(() => {
+    api.getSyncInterval().then((m) => setSyncIntervalMs(m * 60 * 1000)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (subscriptions.length === 0) return;
+    const interval = setInterval(() => {
+      for (const sub of subscriptions) {
+        syncQuiet(sub.id);
+      }
+    }, syncIntervalMs);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subscriptions, syncIntervalMs]);
+
   // ── Render ──
 
   const renderDetailPanel = () => {
@@ -434,6 +614,7 @@ export default function MainPage({
         <FolderForm
           onSave={handleSaveFolder}
           onCancel={() => setEditMode(null)}
+          disabled={saving}
         />
       );
     }
@@ -444,6 +625,7 @@ export default function MainPage({
           onSave={handleSaveFolder}
           onCancel={() => setEditMode(null)}
           isRoot={editMode.folder.id === root.id}
+          disabled={saving}
         />
       );
     }
@@ -452,6 +634,7 @@ export default function MainPage({
         <ConnectionForm
           onSave={handleSaveConnection}
           onCancel={() => setEditMode(null)}
+          disabled={saving}
         />
       );
     }
@@ -462,6 +645,7 @@ export default function MainPage({
           onSave={handleSaveConnection}
           onCancel={() => setEditMode(null)}
           onConnect={() => handleConnect(editMode.connection.id)}
+          disabled={saving}
         />
       );
     }
@@ -513,20 +697,24 @@ export default function MainPage({
             >
               ▶ Connect
             </button>
-            <button
-              className="btn btn-primary btn-action"
-              onClick={() =>
-                setEditMode({ kind: "edit-connection", connection: c })
-              }
-            >
-              ✏️ {t.edit}
-            </button>
-            <button
-              className="btn btn-danger btn-action"
-              onClick={() => handleDelete(c.id)}
-            >
-              🗑️ {t.delete_}
-            </button>
+            {!isNodeReadOnly(c.id) && (
+              <button
+                className="btn btn-primary btn-action"
+                onClick={() =>
+                  setEditMode({ kind: "edit-connection", connection: c })
+                }
+              >
+                ✏️ {t.edit}
+              </button>
+            )}
+            {!isNodeReadOnly(c.id) && (
+              <button
+                className="btn btn-danger btn-action"
+                onClick={() => handleDelete(c.id)}
+              >
+                🗑️ {t.delete_}
+              </button>
+            )}
           </div>
         </div>
       );
@@ -534,9 +722,13 @@ export default function MainPage({
 
     if (selected?.kind === "folder") {
       const f = selected.data;
+      const sub = subscriptions.find((s) => s.folder_id === f.id);
+      const ro = readOnlyFolderIds.has(f.id) || isNodeReadOnly(f.id);
       return (
         <div className="detail-panel">
-          <h2>📁 {f.name}</h2>
+          <h2>{sub ? "🌐" : "📁"} {f.name}
+            {sub?.permissions === "ro" && <span style={{ marginLeft: 8, fontSize: 11, padding: "1px 6px", borderRadius: 4, background: "var(--text-secondary)", color: "#fff" }}>{t.readOnly}</span>}
+          </h2>
           {f.description && (
             <div className="detail-field">
               <strong>{t.description}</strong> {f.description}
@@ -545,14 +737,36 @@ export default function MainPage({
           <div className="detail-field">
             <strong>{t.items}</strong> {f.children.length}
           </div>
+          {sub && (
+            <div className="detail-field">
+              <strong>{t.lastSynced}</strong>{" "}
+              {sub.last_synced ?? t.never}
+            </div>
+          )}
+          {sub && syncErrors.has(sub.id) && (
+            <div className="detail-field detail-error">
+              ⚠️ {t.syncError}: {syncErrors.get(sub.id)}
+            </div>
+          )}
           <div className="form-actions">
-            <button
-              className="btn btn-primary btn-action"
-              onClick={() => setEditMode({ kind: "edit-folder", folder: f })}
-            >
-              ✏️ {t.edit}
-            </button>
-            {f.id !== root.id && (
+            {sub && (
+              <button
+                className="btn btn-action"
+                onClick={() => handleSync(sub.id)}
+                disabled={syncingIds.has(sub.id)}
+              >
+                {syncingIds.has(sub.id) ? t.syncing : t.syncNow}
+              </button>
+            )}
+            {!sub && !ro && (
+              <button
+                className="btn btn-primary btn-action"
+                onClick={() => setEditMode({ kind: "edit-folder", folder: f })}
+              >
+                ✏️ {t.edit}
+              </button>
+            )}
+            {!sub && !ro && f.id !== root.id && (
               <button
                 className="btn btn-danger btn-action"
                 onClick={() => handleDelete(f.id)}
@@ -679,6 +893,8 @@ export default function MainPage({
             checkMode={exportMode}
             checkedIds={checkedIds}
             onCheck={handleCheck}
+            subscriptionFolderIds={subscriptionFolderIds}
+            syncErrorFolderIds={syncErrorFolderIds}
           />
         </div>
         {!exportMode && <div className="detail">{renderDetailPanel()}</div>}
@@ -693,53 +909,84 @@ export default function MainPage({
         >
           {contextMenu.node.type === "Folder" && (
             <>
-              <div
-                className="context-item"
-                onClick={() => {
-                  setEditMode({
-                    kind: "new-folder",
-                    parentId: contextMenu.node.id,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                {t.newFolder}
-              </div>
-              <div
-                className="context-item"
-                onClick={() => {
-                  setEditMode({
-                    kind: "new-connection",
-                    parentId: contextMenu.node.id,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                {t.newConnection}
-              </div>
-              <div className="context-separator" />
-              <div
-                className="context-item"
-                onClick={() => {
-                  setEditMode({
-                    kind: "edit-folder",
-                    folder: contextMenu.node as any,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                {t.editFolder}
-              </div>
-              {contextMenu.node.id !== root.id && (
-                <div
-                  className="context-item context-danger"
-                  onClick={() => {
-                    handleDelete(contextMenu.node.id);
-                    setContextMenu(null);
-                  }}
-                >
-                  {t.deleteFolder}
-                </div>
+              {subscriptionFolderIds.has(contextMenu.node.id) && (
+                <>
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      const sub = subscriptions.find(
+                        (s) => s.folder_id === contextMenu.node.id,
+                      );
+                      if (sub) handleSync(sub.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {syncingIds.has(
+                      subscriptions.find(
+                        (s) => s.folder_id === contextMenu.node.id,
+                      )?.id ?? "",
+                    )
+                      ? t.syncing
+                      : t.syncNow}
+                  </div>
+                  <div className="context-separator" />
+                </>
+              )}
+              {!readOnlyFolderIds.has(contextMenu.node.id) && !isNodeReadOnly(contextMenu.node.id) && (
+                <>
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      setEditMode({
+                        kind: "new-folder",
+                        parentId: contextMenu.node.id,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.newFolder}
+                  </div>
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      setEditMode({
+                        kind: "new-connection",
+                        parentId: contextMenu.node.id,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.newConnection}
+                  </div>
+                </>
+              )}
+              {!subscriptionFolderIds.has(contextMenu.node.id) && !isNodeReadOnly(contextMenu.node.id) && (
+                <>
+                  <div className="context-separator" />
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      setEditMode({
+                        kind: "edit-folder",
+                        folder: contextMenu.node as any,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.editFolder}
+                  </div>
+                  {contextMenu.node.id !== root.id && (
+                    <div
+                      className="context-item context-danger"
+                      onClick={() => {
+                        handleDelete(contextMenu.node.id);
+                        setContextMenu(null);
+                      }}
+                    >
+                      {t.deleteFolder}
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
@@ -754,28 +1001,32 @@ export default function MainPage({
               >
                 {t.connect}
               </div>
-              <div className="context-separator" />
-              <div
-                className="context-item"
-                onClick={() => {
-                  setEditMode({
-                    kind: "edit-connection",
-                    connection: contextMenu.node as any,
-                  });
-                  setContextMenu(null);
-                }}
-              >
-                {t.editConnection}
-              </div>
-              <div
-                className="context-item context-danger"
-                onClick={() => {
-                  handleDelete(contextMenu.node.id);
-                  setContextMenu(null);
-                }}
-              >
-                {t.deleteConnection}
-              </div>
+              {!isNodeReadOnly(contextMenu.node.id) && (
+                <>
+                  <div className="context-separator" />
+                  <div
+                    className="context-item"
+                    onClick={() => {
+                      setEditMode({
+                        kind: "edit-connection",
+                        connection: contextMenu.node as any,
+                      });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.editConnection}
+                  </div>
+                  <div
+                    className="context-item context-danger"
+                    onClick={() => {
+                      handleDelete(contextMenu.node.id);
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t.deleteConnection}
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
@@ -784,7 +1035,11 @@ export default function MainPage({
       {/* Settings modal */}
       {showSettings && (
         <Settings
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            refreshTree();
+            api.getSyncInterval().then((m) => setSyncIntervalMs(m * 60 * 1000)).catch(() => {});
+          }}
           locale={locale}
           onLocaleChange={onLocaleChange}
         />

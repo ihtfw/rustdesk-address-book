@@ -116,6 +116,28 @@ body {
   flex-wrap: wrap;
 }
 
+.recent-paths {
+  margin-bottom: 8px;
+}
+
+.recent-paths label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.recent-paths select {
+  width: 100%;
+  padding: 4px 6px;
+  font-size: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
 /* ─── Forms ─── */
 .form-group {
   margin-bottom: 16px;
@@ -523,6 +545,14 @@ textarea {
   letter-spacing: 0.5px;
   width: 100%;
   margin-bottom: 2px;
+}
+
+.detail-error {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  border-radius: 4px;
+  padding: 8px;
+  word-break: break-word;
 }
 
 .btn-copy {

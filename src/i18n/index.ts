@@ -22,6 +22,7 @@ export interface Translations {
   unlock: string;
   create: string;
   addressBookLocation: string;
+  recentFiles: string;
   open: string;
   saveAs: string;
   default_: string;
@@ -95,6 +96,8 @@ export interface Translations {
   confirmNewPassword: string;
   changePassword: string;
   language: string;
+  syncInterval: string;
+  syncIntervalMinutes: string;
   rustdeskPathSaved: string;
   detected: (path: string) => string;
   newPasswordsDoNotMatch: string;
@@ -116,6 +119,49 @@ export interface Translations {
   noNodesSelected: string;
   saveExportFile: string;
   selectImportFile: string;
+
+  // Subscriptions
+  subscriptions: string;
+  addSubscription: string;
+  editSubscription: string;
+  removeSubscription: string;
+  subscriptionName: string;
+  subscriptionUrl: string;
+  subscriptionKey: string;
+  subscriptionNamePlaceholder: string;
+  subscriptionUrlPlaceholder: string;
+  subscriptionKeyPlaceholder: string;
+  syncNow: string;
+  syncing: string;
+  syncSuccess: string;
+  syncUpToDate: string;
+  syncError: string;
+  syncVersionError: string;
+  syncReadOnly: string;
+  lastSynced: string;
+  never: string;
+  removeSubscriptionConfirm: string;
+  noSubscriptions: string;
+
+  // Access tokens
+  manageAccess: string;
+  accessTokens: string;
+  createToken: string;
+  revokeToken: string;
+  tokenLabel: string;
+  tokenPermissions: string;
+  readWrite: string;
+  readOnly: string;
+  tokenCreated: string;
+  tokenRevoked: string;
+  copyToken: string;
+  tokenCopied: string;
+  noTokens: string;
+  accessToken: string;
+  accessTokenPlaceholder: string;
+  tokenLabelPlaceholder: string;
+  admin: string;
+  revokeConfirm: string;
 }
 
 const I18nContext = createContext<Translations>(null!);

@@ -8,6 +8,8 @@ use uuid::Uuid;
 pub struct AddressBook {
     pub version: u32,
     pub root: Folder,
+    #[serde(default)]
+    pub subscriptions: Vec<Subscription>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +41,92 @@ pub struct Connection {
     pub updated_at: DateTime<Utc>,
 }
 
+/// A remote sync subscription. Its `folder_id` matches a top-level Folder in root.children.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Subscription {
+    pub id: Uuid,
+    pub name: String,
+    pub url: String,
+    pub master_key: String,
+    /// ID of the corresponding top-level folder in the tree.
+    pub folder_id: Uuid,
+    /// Last change ID received from the server (cursor for pull).
+    #[serde(default)]
+    pub last_id: u64,
+    /// When we last synced successfully.
+    pub last_synced: Option<DateTime<Utc>>,
+    /// Node IDs modified locally since last push.
+    #[serde(default)]
+    pub modified_ids: HashSet<Uuid>,
+    /// Node IDs deleted locally since last push.
+    #[serde(default)]
+    pub deleted_ids: HashSet<Uuid>,
+    /// Admin token — set if we created this channel (first push).
+    #[serde(default)]
+    pub admin_token: Option<String>,
+    /// Access token — set if we joined via a shared token.
+    #[serde(default)]
+    pub access_token: Option<String>,
+    /// Permissions: "admin", "rw", or "ro". Fetched from server.
+    #[serde(default)]
+    pub permissions: Option<String>,
+}
+
+/// Current sync event format version. Bump when making breaking changes.
+pub const SYNC_FORMAT_VERSION: u32 = 1;
+
+fn default_sync_version() -> u32 { 1 }
+
+/// A single change event sent to/received from the sync server.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncEvent {
+    /// Format version — reject events with a higher version.
+    #[serde(default = "default_sync_version")]
+    pub version: u32,
+    pub action: SyncAction,
+    /// For upsert: the full node (Connection or Folder without children).
+    pub node: Option<TreeNode>,
+    /// For upsert: which folder this node lives in.
+    pub parent_id: Option<Uuid>,
+    /// For delete: the node ID to remove.
+    pub node_id: Option<Uuid>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SyncAction {
+    Upsert,
+    Delete,
+}
+
+/// Server response for GET /sync/{guid}?after={id}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncPullResponse {
+    pub changes: Vec<SyncPullEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncPullEntry {
+    pub id: u64,
+    pub data: String, // base64-encoded encrypted blob
+}
+
+/// Server response for POST /sync/{guid}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncPushResponse {
+    pub id: u64,
+    /// Returned only on first push (channel creation).
+    #[serde(default)]
+    pub admin_token: Option<String>,
+}
+
+/// Result returned to the frontend after sync_subscription.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncResult {
+    pub root: Folder,
+    pub pulled: usize,
+    pub pushed: usize,
+}
+
 impl AddressBook {
     pub fn new() -> Self {
         Self {
@@ -49,6 +137,7 @@ impl AddressBook {
                 description: String::new(),
                 children: Vec::new(),
             },
+            subscriptions: Vec::new(),
         }
     }
 
@@ -102,6 +191,7 @@ impl AddressBook {
                 description: String::new(),
                 children,
             },
+            subscriptions: Vec::new(),
         }
     }
 
@@ -127,6 +217,86 @@ impl AddressBook {
             }
         }
     }
+
+    /// Find which subscription (if any) a node belongs to.
+    /// Checks if the node lives inside any subscription folder.
+    pub fn find_subscription_for_node(&self, node_id: Uuid) -> Option<Uuid> {
+        for sub in &self.subscriptions {
+            // Find the subscription folder in root.children
+            for child in &self.root.children {
+                if let TreeNode::Folder(f) = child {
+                    if f.id == sub.folder_id {
+                        if node_is_inside(f, node_id) {
+                            return Some(sub.id);
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Mark a node as modified in its subscription (if it belongs to one).
+    pub fn mark_node_modified(&mut self, node_id: Uuid) {
+        // First find which subscription this node belongs to
+        let sub_id = self.find_subscription_for_node(node_id);
+        if let Some(sid) = sub_id {
+            if let Some(sub) = self.subscriptions.iter_mut().find(|s| s.id == sid) {
+                sub.modified_ids.insert(node_id);
+                sub.deleted_ids.remove(&node_id);
+            }
+        }
+    }
+
+    /// Mark a node as deleted in its subscription (if it belongs to one).
+    pub fn mark_node_deleted(&mut self, node_id: Uuid) {
+        let sub_id = self.find_subscription_for_node(node_id);
+        if let Some(sid) = sub_id {
+            if let Some(sub) = self.subscriptions.iter_mut().find(|s| s.id == sid) {
+                sub.deleted_ids.insert(node_id);
+                sub.modified_ids.remove(&node_id);
+            }
+        }
+    }
+
+    /// Apply a sync event to a subscription's folder.
+    pub fn apply_sync_event(&mut self, sub_folder_id: Uuid, event: &SyncEvent) {
+        match event.action {
+            SyncAction::Upsert => {
+                if let Some(node) = &event.node {
+                    let parent_id = event.parent_id.unwrap_or(sub_folder_id);
+                    let node_id = match node {
+                        TreeNode::Folder(f) => f.id,
+                        TreeNode::Connection(c) => c.id,
+                    };
+                    // Check if node already exists anywhere in the tree
+                    let exists = {
+                        let ids = collect_all_ids_set(&self.root);
+                        ids.contains(&node_id)
+                    };
+                    if exists {
+                        // Update in place
+                        update_node_recursive(&mut self.root, node);
+                    } else {
+                        // New node — add to the specified parent folder, fall back to subscription folder
+                        let target_id = if find_folder_recursive(&mut self.root, parent_id).is_some() {
+                            parent_id
+                        } else {
+                            sub_folder_id
+                        };
+                        if let Some(folder) = find_folder_recursive(&mut self.root, target_id) {
+                            folder.children.push(node.clone());
+                        }
+                    }
+                }
+            }
+            SyncAction::Delete => {
+                if let Some(node_id) = event.node_id {
+                    extract_node_recursive(&mut self.root, node_id);
+                }
+            }
+        }
+    }
 }
 
 fn find_folder_recursive(folder: &mut Folder, target_id: Uuid) -> Option<&mut Folder> {
@@ -141,6 +311,25 @@ fn find_folder_recursive(folder: &mut Folder, target_id: Uuid) -> Option<&mut Fo
         }
     }
     None
+}
+
+/// Check if a node with the given ID exists anywhere inside a folder (recursively).
+fn node_is_inside(folder: &Folder, target_id: Uuid) -> bool {
+    for child in &folder.children {
+        match child {
+            TreeNode::Folder(f) => {
+                if f.id == target_id || node_is_inside(f, target_id) {
+                    return true;
+                }
+            }
+            TreeNode::Connection(c) => {
+                if c.id == target_id {
+                    return true;
+                }
+            }
+        }
+    }
+    false
 }
 
 fn find_connection_recursive(folder: &Folder, target_id: Uuid) -> Option<Connection> {

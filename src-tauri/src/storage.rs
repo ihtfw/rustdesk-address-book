@@ -11,6 +11,8 @@ const APP_DIR_NAME: &str = "rustdesk-address-book";
 const FILE_NAME: &str = "addressbook.enc";
 const CONFIG_FILE: &str = "config.json";
 
+const MAX_RECENT_PATHS: usize = 20;
+
 /// Simple config stored alongside the app (not encrypted).
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppConfig {
@@ -23,6 +25,12 @@ pub struct AppConfig {
     /// UI language code (e.g. "en", "ru"). Defaults to "en".
     #[serde(default = "default_lang")]
     pub language: String,
+    /// Recently used address book file paths (most recent first).
+    #[serde(default)]
+    pub recent_paths: Vec<String>,
+    /// Auto-sync interval in minutes (1..=600). Defaults to 60.
+    #[serde(default = "default_sync_interval")]
+    pub sync_interval_minutes: u32,
 }
 
 fn default_true() -> bool {
@@ -33,11 +41,25 @@ fn default_lang() -> String {
     "en".to_string()
 }
 
+fn default_sync_interval() -> u32 {
+    60
+}
+
 /// Get the app config directory (always in the default location).
 fn get_config_dir() -> Result<PathBuf, AppError> {
     let data_dir = dirs::data_local_dir()
         .ok_or_else(|| AppError::Storage("Cannot determine local data directory".to_string()))?;
     Ok(data_dir.join(APP_DIR_NAME))
+}
+
+/// Get log directory (inside config dir). Creates it if needed.
+pub fn get_log_dir() -> PathBuf {
+    let dir = dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join(APP_DIR_NAME)
+        .join("logs");
+    let _ = std::fs::create_dir_all(&dir);
+    dir
 }
 
 /// Load the app config.
@@ -89,6 +111,21 @@ pub fn set_storage_path(path: &str) -> Result<(), AppError> {
     save_config(&config)
 }
 
+/// Add a path to the recent list (moves to front if already present, caps at MAX_RECENT_PATHS).
+pub fn add_recent_path(path: &str) -> Result<(), AppError> {
+    let mut config = load_config()?;
+    config.recent_paths.retain(|p| p != path);
+    config.recent_paths.insert(0, path.to_string());
+    config.recent_paths.truncate(MAX_RECENT_PATHS);
+    save_config(&config)
+}
+
+/// Get the list of recently used paths.
+pub fn get_recent_paths() -> Result<Vec<String>, AppError> {
+    let config = load_config()?;
+    Ok(config.recent_paths)
+}
+
 /// Check if an address book file already exists at the configured path.
 pub fn exists() -> Result<bool, AppError> {
     let path = get_file_path()?;
@@ -104,26 +141,38 @@ pub fn exists_at(file_path: &str) -> bool {
 pub fn create_new(password: &str) -> Result<AddressBook, AppError> {
     let book = AddressBook::new();
     save(&book, password)?;
+    let path = get_file_path()?;
+    let _ = add_recent_path(&path.to_string_lossy());
     Ok(book)
 }
 
 /// Open an existing address book by decrypting it with the password.
 pub fn open(password: &str) -> Result<AddressBook, AppError> {
     let path = get_file_path()?;
-    let blob = fs::read(&path).map_err(|e| AppError::Storage(e.to_string()))?;
+    open_at(password, &path)
+}
+
+/// Open an address book from a specific path.
+pub fn open_at(password: &str, path: &std::path::Path) -> Result<AddressBook, AppError> {
+    let blob = fs::read(path).map_err(|e| AppError::Storage(e.to_string()))?;
     let plaintext = crypto::decrypt(&blob, password)?;
     let book: AddressBook =
         serde_json::from_slice(&plaintext).map_err(|e| AppError::Storage(e.to_string()))?;
+    let _ = add_recent_path(&path.to_string_lossy());
     Ok(book)
 }
 
 /// Save the address book: serialize → encrypt → atomic write.
 pub fn save(book: &AddressBook, password: &str) -> Result<(), AppError> {
+    let path = get_file_path()?;
+    save_to(book, password, &path)
+}
+
+/// Save the address book to a specific path (avoids re-reading config.json).
+pub fn save_to(book: &AddressBook, password: &str, path: &std::path::Path) -> Result<(), AppError> {
     let plaintext =
         serde_json::to_vec(book).map_err(|e| AppError::Storage(e.to_string()))?;
     let blob = crypto::encrypt(&plaintext, password)?;
-
-    let path = get_file_path()?;
 
     // Ensure directory exists
     if let Some(parent) = path.parent() {
