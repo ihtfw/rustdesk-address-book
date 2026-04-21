@@ -46,6 +46,8 @@ export default function MainPage({
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [folderSearch, setFolderSearch] = useState("");
   const [connectionSearch, setConnectionSearch] = useState("");
+  const [expandAllFolders, setExpandAllFolders] = useState(true);
+  const [expandSignal, setExpandSignal] = useState(0);
   const menuRef = useRef<HTMLDivElement>(null);
   const [saving, setSaving] = useState(false);
   const t = useI18n();
@@ -482,6 +484,11 @@ export default function MainPage({
     setCheckedIds(new Set());
   };
 
+  const handleToggleExpandAllFolders = () => {
+    setExpandAllFolders((prev) => !prev);
+    setExpandSignal((prev) => prev + 1);
+  };
+
   const handleExportConfirm = () => {
     if (checkedIds.size === 0) {
       setError(t.noNodesSelected);
@@ -840,6 +847,14 @@ export default function MainPage({
             <div className="toolbar-left">
               <button
                 className="btn btn-small toolbar-icon-btn"
+                onClick={handleToggleExpandAllFolders}
+                data-tooltip={expandAllFolders ? t.toolbarCollapseAllFolders : t.toolbarExpandAllFolders}
+                aria-label={expandAllFolders ? t.toolbarCollapseAllFolders : t.toolbarExpandAllFolders}
+              >
+                {expandAllFolders ? "🔽" : "▶️"}
+              </button>
+              <button
+                className="btn btn-small toolbar-icon-btn"
                 onClick={() =>
                   setEditMode({ kind: "new-folder", parentId: root.id })
                 }
@@ -942,6 +957,8 @@ export default function MainPage({
             onCheck={handleCheck}
             subscriptionFolderIds={subscriptionFolderIds}
             syncErrorFolderIds={syncErrorFolderIds}
+            expandAllFolders={expandAllFolders}
+            expandSignal={expandSignal}
           />
         </div>
         {!exportMode && <div className="detail">{renderDetailPanel()}</div>}

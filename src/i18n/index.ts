@@ -117,6 +117,8 @@ export interface Translations {
   toolbarImport: string;
   toolbarSettings: string;
   toolbarLock: string;
+  toolbarCollapseAllFolders: string;
+  toolbarExpandAllFolders: string;
   toolbarExportCancel: string;
   toolbarExportConfirm: string;
   exportPasswordTitle: string;

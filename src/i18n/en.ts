@@ -106,6 +106,8 @@ const en: Translations = {
   toolbarImport: "Import",
   toolbarSettings: "Settings",
   toolbarLock: "Lock",
+  toolbarCollapseAllFolders: "Collapse all folders",
+  toolbarExpandAllFolders: "Expand all folders",
   toolbarExportCancel: "Cancel export",
   toolbarExportConfirm: "Confirm export",
   exportPasswordTitle: "Export Password",

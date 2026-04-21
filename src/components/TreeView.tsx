@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { TreeNode, SelectedItem } from "../types";
 import { useI18n } from "../i18n";
 
@@ -22,6 +22,9 @@ interface Props {
   subscriptionFolderIds?: Set<string>;
   // Subscription folders with sync errors (show ⚠️)
   syncErrorFolderIds?: Set<string>;
+  // Global expand/collapse control
+  expandAllFolders?: boolean;
+  expandSignal?: number;
 }
 
 /** Sort nodes: folders first, then favorites, then alphabetically */
@@ -60,13 +63,21 @@ function TreeNodeItem({
   onCheck,
   subscriptionFolderIds,
   syncErrorFolderIds,
+  expandAllFolders = true,
+  expandSignal = 0,
 }: Props & { node: TreeNode }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(expandAllFolders);
   const [dragOver, setDragOver] = useState(false);
 
   const isFolder = node.type === "Folder";
   const isSelected = node.id === selectedId;
   const children = isFolder ? sortNodes(node.children) : [];
+
+  useEffect(() => {
+    if (isFolder) {
+      setExpanded(expandAllFolders);
+    }
+  }, [expandAllFolders, expandSignal, isFolder]);
 
   // Determine checkbox state for this node
   const isChecked = checkedIds?.has(node.id) ?? false;
@@ -206,6 +217,8 @@ function TreeNodeItem({
               onCheck={onCheck}
               subscriptionFolderIds={subscriptionFolderIds}
               syncErrorFolderIds={syncErrorFolderIds}
+              expandAllFolders={expandAllFolders}
+              expandSignal={expandSignal}
             />
           ))}
         </div>
@@ -227,6 +240,8 @@ export default function TreeView({
   onCheck,
   subscriptionFolderIds,
   syncErrorFolderIds,
+  expandAllFolders,
+  expandSignal,
 }: Props) {
   if (nodes.length === 0) {
     return <div className="tree-empty">{useI18n().noItemsYet}</div>;
@@ -250,6 +265,8 @@ export default function TreeView({
           onCheck={onCheck}
           subscriptionFolderIds={subscriptionFolderIds}
           syncErrorFolderIds={syncErrorFolderIds}
+          expandAllFolders={expandAllFolders}
+          expandSignal={expandSignal}
         />
       ))}
     </div>

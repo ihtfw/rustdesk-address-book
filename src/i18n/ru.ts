@@ -107,6 +107,8 @@ const ru: Translations = {
   toolbarImport: "Импорт",
   toolbarSettings: "Настройки",
   toolbarLock: "Заблокировать",
+  toolbarCollapseAllFolders: "Свернуть все папки",
+  toolbarExpandAllFolders: "Развернуть все папки",
   toolbarExportCancel: "Отменить экспорт",
   toolbarExportConfirm: "Подтвердить экспорт",
   exportPasswordTitle: "Пароль экспорта",

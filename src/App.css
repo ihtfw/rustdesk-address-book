@@ -355,6 +355,9 @@ textarea {
   padding: 8px 16px;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: visible;
+  z-index: 10;
 }
 
 .toolbar-left,
@@ -383,6 +386,7 @@ textarea {
   left: 50%;
   transform: translateX(-50%);
   white-space: nowrap;
+  max-width: 220px;
   padding: 4px 8px;
   border-radius: 4px;
   font-size: 12px;
@@ -393,7 +397,18 @@ textarea {
   opacity: 0;
   visibility: hidden;
   pointer-events: none;
-  z-index: 20;
+  z-index: 3000;
+}
+
+.toolbar-left .toolbar-icon-btn::after {
+  left: 0;
+  transform: none;
+}
+
+.toolbar-right .toolbar-icon-btn::after {
+  left: auto;
+  right: 0;
+  transform: none;
 }
 
 .toolbar-icon-btn:hover::after,
