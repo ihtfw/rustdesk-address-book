@@ -2,8 +2,8 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - release
 
 jobs:
   create-release:
@@ -12,21 +12,33 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_id: ${{ steps.create-release.outputs.id }}
+      version: ${{ steps.create-release.outputs.version }}
+      tag_name: ${{ steps.create-release.outputs.tag_name }}
     steps:
+      - uses: actions/checkout@v6
+
       - name: Create release
         id: create-release
         uses: actions/github-script@v8
         with:
           script: |
+            const fs = require('fs');
+            const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+            const version = pkg.version;
+            const tagName = `v${version}`;
+
             const { data } = await github.rest.repos.createRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              tag_name: '${{ github.ref_name }}',
-              name: '${{ github.ref_name }}',
+              tag_name: tagName,
+              target_commitish: context.sha,
+              name: tagName,
               draft: true,
               prerelease: false,
             });
             core.setOutput('id', data.id);
+            core.setOutput('version', version);
+            core.setOutput('tag_name', tagName);
 
   build-tauri:
     needs: create-release
@@ -88,6 +100,20 @@ jobs:
     runs-on: ubuntu-latest
     needs: [create-release, build-tauri]
     steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Push version tag
+        run: |
+          TAG_NAME="${{ needs.create-release.outputs.tag_name }}"
+          if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+            echo "Tag $TAG_NAME already exists locally"
+          else
+            git tag "$TAG_NAME" "${{ github.sha }}"
+          fi
+          git push origin "$TAG_NAME"
+
       - name: Publish release
         uses: actions/github-script@v8
         env:
