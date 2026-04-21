@@ -42,6 +42,7 @@ export interface Translations {
   // Detail panel
   rustdeskId: string;
   password: string;
+  favorite: string;
   description: string;
   items: string;
   connect: string;

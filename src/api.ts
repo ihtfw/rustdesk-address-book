@@ -23,34 +23,39 @@ export const addFolder = (
   parentId: string,
   name: string,
   description: string,
-) => invoke<Folder>("add_folder", { parentId, name, description });
+  favorite = false,
+) => invoke<Folder>("add_folder", { parentId, name, description, favorite });
 export const addConnection = (
   parentId: string,
   name: string,
   description: string,
   rustdeskId: string,
   password: string,
+  favorite = false,
 ) =>
   invoke<Connection>("add_connection", {
     parentId,
     name,
     description,
+    favorite,
     rustdeskId,
     password,
   });
-export const updateFolder = (id: string, name: string, description: string) =>
-  invoke<Folder>("update_folder", { id, name, description });
+export const updateFolder = (id: string, name: string, description: string, favorite = false) =>
+  invoke<Folder>("update_folder", { id, name, description, favorite });
 export const updateConnection = (
   id: string,
   name: string,
   description: string,
   rustdeskId: string,
   password: string,
+  favorite = false,
 ) =>
   invoke<Connection>("update_connection", {
     id,
     name,
     description,
+    favorite,
     rustdeskId,
     password,
   });

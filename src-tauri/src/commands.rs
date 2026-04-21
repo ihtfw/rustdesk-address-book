@@ -167,6 +167,7 @@ pub fn add_folder(
     parent_id: String,
     name: String,
     description: String,
+    favorite: bool,
 ) -> Result<Folder, AppError> {
     let parent_uuid = Uuid::parse_str(&parent_id)
         .map_err(|e| AppError::General(format!("Invalid parent ID: {}", e)))?;
@@ -177,6 +178,7 @@ pub fn add_folder(
         id: Uuid::new_v4(),
         name,
         description,
+        favorite,
         children: Vec::new(),
     };
 
@@ -199,6 +201,7 @@ pub fn add_connection(
     parent_id: String,
     name: String,
     description: String,
+    favorite: bool,
     rustdesk_id: String,
     password: String,
 ) -> Result<Connection, AppError> {
@@ -212,6 +215,7 @@ pub fn add_connection(
         id: Uuid::new_v4(),
         name,
         description,
+        favorite,
         rustdesk_id,
         password,
         created_at: now,
@@ -237,6 +241,7 @@ pub fn update_folder(
     id: String,
     name: String,
     description: String,
+    favorite: bool,
 ) -> Result<Folder, AppError> {
     let uuid = Uuid::parse_str(&id)
         .map_err(|e| AppError::General(format!("Invalid folder ID: {}", e)))?;
@@ -248,6 +253,7 @@ pub fn update_folder(
         .ok_or_else(|| AppError::General("Folder not found".to_string()))?;
     folder.name = name;
     folder.description = description;
+    folder.favorite = favorite;
     let result = folder.clone();
 
     book.mark_node_modified(uuid);
@@ -279,6 +285,7 @@ pub fn update_connection(
     id: String,
     name: String,
     description: String,
+    favorite: bool,
     rustdesk_id: String,
     password: String,
 ) -> Result<Connection, AppError> {
@@ -291,6 +298,7 @@ pub fn update_connection(
         .ok_or_else(|| AppError::General("Connection not found".to_string()))?;
     conn.name = name;
     conn.description = description;
+    conn.favorite = favorite;
     conn.rustdesk_id = rustdesk_id;
     conn.password = password;
     conn.updated_at = Utc::now();
@@ -631,6 +639,7 @@ pub fn add_subscription(
         id: folder_id,
         name,
         description: String::new(),
+        favorite: false,
         children: Vec::new(),
     };
     book.root.children.push(TreeNode::Folder(folder));
@@ -866,6 +875,7 @@ fn collect_nodes_flat(folder: &Folder) -> Vec<(TreeNode, Uuid)> {
                     id: f.id,
                     name: f.name.clone(),
                     description: f.description.clone(),
+                    favorite: f.favorite,
                     children: Vec::new(),
                 });
                 result.push((folder_without_children, folder.id));

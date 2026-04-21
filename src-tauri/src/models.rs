@@ -18,6 +18,8 @@ pub struct Folder {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
+    pub favorite: bool,
     pub children: Vec<TreeNode>,
 }
 
@@ -34,6 +36,8 @@ pub struct Connection {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
+    pub favorite: bool,
     pub rustdesk_id: String,
     #[serde(default)]
     pub password: String,
@@ -135,6 +139,7 @@ impl AddressBook {
                 id: Uuid::new_v4(),
                 name: "Root".to_string(),
                 description: String::new(),
+                favorite: false,
                 children: Vec::new(),
             },
             subscriptions: Vec::new(),
@@ -189,6 +194,7 @@ impl AddressBook {
                 id: Uuid::new_v4(),
                 name: "Root".to_string(),
                 description: String::new(),
+                favorite: false,
                 children,
             },
             subscriptions: Vec::new(),
@@ -406,6 +412,7 @@ fn filter_selected(nodes: &[TreeNode], selected: &HashSet<Uuid>) -> Vec<TreeNode
                             id: f.id,
                             name: f.name.clone(),
                             description: f.description.clone(),
+                            favorite: f.favorite,
                             children,
                         }));
                     }
@@ -450,6 +457,7 @@ fn update_node_recursive(folder: &mut Folder, import_node: &TreeNode) {
                     if c.id == import_conn.id {
                         c.name = import_conn.name.clone();
                         c.description = import_conn.description.clone();
+                        c.favorite = import_conn.favorite;
                         c.rustdesk_id = import_conn.rustdesk_id.clone();
                         c.password = import_conn.password.clone();
                         c.updated_at = import_conn.updated_at;
@@ -471,6 +479,7 @@ fn update_node_recursive(folder: &mut Folder, import_node: &TreeNode) {
                     if f.id == import_folder.id {
                         f.name = import_folder.name.clone();
                         f.description = import_folder.description.clone();
+                        f.favorite = import_folder.favorite;
                         // Recursively merge children of this folder
                         let existing_ids = collect_all_ids_set(f);
                         for import_child in &import_folder.children {

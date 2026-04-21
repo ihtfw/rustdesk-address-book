@@ -7,6 +7,7 @@ interface Props {
   onSave: (data: {
     name: string;
     description: string;
+    favorite: boolean;
     rustdesk_id: string;
     password: string;
   }) => void;
@@ -24,6 +25,7 @@ export default function ConnectionForm({
 }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [favorite, setFavorite] = useState(false);
   const [rustdeskId, setRustdeskId] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -33,11 +35,13 @@ export default function ConnectionForm({
     if (connection) {
       setName(connection.name);
       setDescription(connection.description);
+      setFavorite(connection.favorite);
       setRustdeskId(connection.rustdesk_id);
       setPassword(connection.password);
     } else {
       setName("");
       setDescription("");
+      setFavorite(false);
       setRustdeskId("");
       setPassword("");
     }
@@ -49,6 +53,7 @@ export default function ConnectionForm({
     onSave({
       name: name.trim(),
       description: description.trim(),
+      favorite,
       rustdesk_id: rustdeskId.trim(),
       password,
     });
@@ -113,6 +118,17 @@ export default function ConnectionForm({
             placeholder={t.descriptionPlaceholder}
             rows={3}
           />
+        </div>
+
+        <div className="form-group form-group--checkbox">
+          <label>
+            <input
+              type="checkbox"
+              checked={favorite}
+              onChange={(e) => setFavorite(e.target.checked)}
+            />
+            {t.favorite}
+          </label>
         </div>
 
         <div className="form-actions">

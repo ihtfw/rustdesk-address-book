@@ -36,6 +36,7 @@ const en: Translations = {
 
   rustdeskId: "RustDesk ID:",
   password: "Password:",
+  favorite: "Favorite",
   description: "Description:",
   items: "Items:",
   connect: "▶ Connect",

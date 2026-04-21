@@ -24,6 +24,18 @@ interface Props {
   syncErrorFolderIds?: Set<string>;
 }
 
+/** Sort nodes: folders first, then favorites, then alphabetically */
+function sortNodes(nodes: TreeNode[]): TreeNode[] {
+  return [...nodes].sort((a, b) => {
+    // 1. Folders before connections
+    if (a.type !== b.type) return a.type === "Folder" ? -1 : 1;
+    // 2. Favorites before non-favorites
+    if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
+    // 3. Alphabetically by name
+    return a.name.localeCompare(b.name);
+  });
+}
+
 /** Collect all descendant IDs of a folder node */
 function collectAllIds(node: TreeNode): string[] {
   const ids = [node.id];
@@ -54,7 +66,7 @@ function TreeNodeItem({
 
   const isFolder = node.type === "Folder";
   const isSelected = node.id === selectedId;
-  const children = isFolder ? node.children : [];
+  const children = isFolder ? sortNodes(node.children) : [];
 
   // Determine checkbox state for this node
   const isChecked = checkedIds?.has(node.id) ?? false;
@@ -162,6 +174,7 @@ function TreeNodeItem({
             </span>
           )}
           <span className="tree-icon">{isFolder ? (subscriptionFolderIds?.has(node.id) ? (syncErrorFolderIds?.has(node.id) ? "⚠️" : "🌐") : "📁") : "🖥️"}</span>
+          {(node as any).favorite && <span className="tree-icon">⭐</span>}
           <span className="tree-label">{node.name}</span>
           {checkMode && (
             <span className="tree-id">{!isFolder ? (node as any).rustdesk_id || "" : ""}</span>
@@ -221,7 +234,7 @@ export default function TreeView({
 
   return (
     <div className="tree-view">
-      {nodes.map((node) => (
+      {sortNodes(nodes).map((node) => (
         <TreeNodeItem
           key={node.id}
           node={node}

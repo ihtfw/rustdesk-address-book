@@ -4,7 +4,7 @@ import { useI18n } from "../i18n";
 
 interface Props {
   folder?: Folder;
-  onSave: (data: { name: string; description: string }) => void;
+  onSave: (data: { name: string; description: string; favorite: boolean }) => void;
   onCancel: () => void;
   isRoot?: boolean;
   disabled?: boolean;
@@ -19,21 +19,24 @@ export default function FolderForm({
 }: Props) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [favorite, setFavorite] = useState(false);
   const t = useI18n();
 
   useEffect(() => {
     if (folder) {
       setName(folder.name);
       setDescription(folder.description);
+      setFavorite(folder.favorite);
     } else {
       setName("");
       setDescription("");
+      setFavorite(false);
     }
   }, [folder]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ name: name.trim(), description: description.trim() });
+    onSave({ name: name.trim(), description: description.trim(), favorite });
   };
 
   const isEdit = !!folder;
@@ -64,6 +67,17 @@ export default function FolderForm({
             placeholder={t.folderDescPlaceholder}
             rows={3}
           />
+        </div>
+
+        <div className="form-group form-group--checkbox">
+          <label>
+            <input
+              type="checkbox"
+              checked={favorite}
+              onChange={(e) => setFavorite(e.target.checked)}
+            />
+            {t.favorite}
+          </label>
         </div>
 
         <div className="form-actions">

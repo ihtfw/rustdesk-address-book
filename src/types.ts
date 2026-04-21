@@ -2,6 +2,7 @@ export interface Folder {
   id: string;
   name: string;
   description: string;
+  favorite: boolean;
   children: TreeNode[];
 }
 
@@ -9,6 +10,7 @@ export interface Connection {
   id: string;
   name: string;
   description: string;
+  favorite: boolean;
   rustdesk_id: string;
   password: string;
   created_at: string;
@@ -21,6 +23,7 @@ export type TreeNode =
       id: string;
       name: string;
       description: string;
+      favorite: boolean;
       children: TreeNode[];
     }
   | {
@@ -28,6 +31,7 @@ export type TreeNode =
       id: string;
       name: string;
       description: string;
+      favorite: boolean;
       rustdesk_id: string;
       password: string;
       created_at: string;

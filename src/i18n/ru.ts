@@ -37,6 +37,7 @@ const ru: Translations = {
 
   rustdeskId: "RustDesk ID:",
   password: "Пароль:",
+  favorite: "Избранное",
   description: "Описание:",
   items: "Элементов:",
   connect: "▶ Подключиться",

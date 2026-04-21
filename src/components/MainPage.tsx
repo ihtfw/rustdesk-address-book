@@ -305,6 +305,7 @@ export default function MainPage({
   const handleSaveFolder = async (data: {
     name: string;
     description: string;
+    favorite: boolean;
   }) => {
     if (saving) return;
     setSaving(true);
@@ -317,6 +318,7 @@ export default function MainPage({
           editMode.parentId,
           data.name,
           data.description,
+          data.favorite,
         );
         setSelected({ kind: "folder", data: folder });
       } else if (editMode?.kind === "edit-folder") {
@@ -325,6 +327,7 @@ export default function MainPage({
           editMode.folder.id,
           data.name,
           data.description,
+          data.favorite,
         );
         setSelected({ kind: "folder", data: folder });
       }
@@ -341,6 +344,7 @@ export default function MainPage({
   const handleSaveConnection = async (data: {
     name: string;
     description: string;
+    favorite: boolean;
     rustdesk_id: string;
     password: string;
   }) => {
@@ -357,6 +361,7 @@ export default function MainPage({
           data.description,
           data.rustdesk_id,
           data.password,
+          data.favorite,
         );
         setSelected({ kind: "connection", data: conn });
       } else if (editMode?.kind === "edit-connection") {
@@ -367,6 +372,7 @@ export default function MainPage({
           data.description,
           data.rustdesk_id,
           data.password,
+          data.favorite,
         );
         setSelected({ kind: "connection", data: conn });
       }
@@ -661,7 +667,7 @@ export default function MainPage({
       return (
         <div className="detail-panel">
           <h2>
-            🖥️ {c.name}
+            {c.favorite ? "⭐" : "🖥️"} {c.name}
             <button
               className="btn btn-small btn-copy"
               onClick={() =>
@@ -726,7 +732,7 @@ export default function MainPage({
       const ro = readOnlyFolderIds.has(f.id) || isNodeReadOnly(f.id);
       return (
         <div className="detail-panel">
-          <h2>{sub ? "🌐" : "📁"} {f.name}
+          <h2>{sub ? "🌐" : f.favorite ? "⭐" : "📁"} {f.name}
             {sub?.permissions === "ro" && <span style={{ marginLeft: 8, fontSize: 11, padding: "1px 6px", borderRadius: 4, background: "var(--text-secondary)", color: "#fff" }}>{t.readOnly}</span>}
           </h2>
           {f.description && (
