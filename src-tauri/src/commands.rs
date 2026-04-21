@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::crypto;
 use crate::errors::AppError;
-use crate::models::{AddressBook, Connection, Folder, Subscription, SyncAction, SyncEvent, SyncPullResponse, SyncPushResponse, TreeNode, SYNC_FORMAT_VERSION};
+use crate::models::{AddressBook, Connection, Folder, Subscription, SyncAction, SyncEvent, SyncPullResponse, SyncPushResponse, SyncResult, TreeNode, SYNC_FORMAT_VERSION};
 use crate::rustdesk;
 use crate::storage;
 
@@ -391,7 +391,11 @@ pub fn connect(state: tauri::State<'_, AppState>, connection_id: String) -> Resu
         .ok_or_else(|| AppError::General(format!("Connection not found: {}", connection_id)))?;
 
     // Clone connection data before dropping the lock
-    let rustdesk_id = conn.rustdesk_id.clone();
+        let rustdesk_id: String = conn
+            .rustdesk_id
+            .chars()
+            .filter(|character| !character.is_whitespace())
+            .collect();
     let password = conn.password.clone();
     drop(book_lock);
 
@@ -882,7 +886,7 @@ async fn do_sync_pull(
     state: &AppState,
     subscription_id: &str,
     client: &reqwest::Client,
-) -> Result<Folder, AppError> {
+) -> Result<(Folder, usize), AppError> {
     let total_start = std::time::Instant::now();
     let sub_uuid = Uuid::parse_str(subscription_id)
         .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
@@ -950,6 +954,8 @@ async fn do_sync_pull(
 
     info!(sub = %subscription_id, changes = pull_response.changes.len(), http_ms = http_elapsed.as_millis(), "sync_pull: received changes");
 
+    let pulled = pull_response.changes.len();
+
     // Apply each change
     let mut new_last_id = last_id;
     {
@@ -1015,14 +1021,14 @@ async fn do_sync_pull(
             _ => None,
         })
         .ok_or_else(|| AppError::General("Subscription folder not found".to_string()))?;
-    Ok(folder)
+    Ok((folder, pulled))
 }
 
 async fn do_sync_push(
     state: &AppState,
     subscription_id: &str,
     client: &reqwest::Client,
-) -> Result<(), AppError> {
+) -> Result<usize, AppError> {
     let total_start = std::time::Instant::now();
     let sub_uuid = Uuid::parse_str(subscription_id)
         .map_err(|e| AppError::General(format!("Invalid subscription ID: {}", e)))?;
@@ -1092,6 +1098,7 @@ async fn do_sync_push(
 
     info!(sub = %subscription_id, events = events.len(), modified = modified_ids.len(), deleted = deleted_ids.len(), "sync_push: sending events");
 
+    let pushed = events.len();
     let mut received_admin_token: Option<String> = None;
 
     if !events.is_empty() {
@@ -1179,7 +1186,7 @@ async fn do_sync_push(
 
     let total_elapsed = total_start.elapsed();
     info!(sub = %subscription_id, total_ms = total_elapsed.as_millis(), "sync_push: done (no save)");
-    Ok(())
+    Ok(pushed)
 }
 
 // ── Tauri sync commands ─────────────────────────────────────────
@@ -1190,7 +1197,7 @@ pub async fn sync_pull(
     subscription_id: String,
 ) -> Result<Folder, AppError> {
     let client = reqwest::Client::new();
-    let folder = do_sync_pull(&state, &subscription_id, &client).await?;
+    let (folder, _) = do_sync_pull(&state, &subscription_id, &client).await?;
     get_book_and_save(&state)?;
     Ok(folder)
 }
@@ -1210,13 +1217,13 @@ pub async fn sync_push(
 pub async fn sync_subscription(
     state: tauri::State<'_, AppState>,
     subscription_id: String,
-) -> Result<Folder, AppError> {
+) -> Result<SyncResult, AppError> {
     let total_start = std::time::Instant::now();
     let client = reqwest::Client::new();
 
     // Pull first, then push — single save at the end
-    let folder = do_sync_pull(&state, &subscription_id, &client).await?;
-    do_sync_push(&state, &subscription_id, &client).await?;
+    let (folder, pulled) = do_sync_pull(&state, &subscription_id, &client).await?;
+    let pushed = do_sync_push(&state, &subscription_id, &client).await?;
 
     let save_start = std::time::Instant::now();
     get_book_and_save(&state)?;
@@ -1225,5 +1232,5 @@ pub async fn sync_subscription(
     let total_elapsed = total_start.elapsed();
     info!(sub = %subscription_id, save_ms = save_elapsed.as_millis(), total_ms = total_elapsed.as_millis(), "sync: done");
 
-    Ok(folder)
+    Ok(SyncResult { root: folder, pulled, pushed })
 }

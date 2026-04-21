@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Folder, Connection, Subscription, AccessTokenInfo, CreatedToken } from "./types";
+import type { Folder, Connection, Subscription, AccessTokenInfo, CreatedToken, SyncResult } from "./types";
 
 // Auth
 export const addressBookExists = () => invoke<boolean>("address_book_exists");
@@ -109,7 +109,7 @@ export const syncPull = (subscriptionId: string) =>
 export const syncPush = (subscriptionId: string) =>
   invoke<void>("sync_push", { subscriptionId });
 export const syncSubscription = (subscriptionId: string) =>
-  invoke<Folder>("sync_subscription", { subscriptionId });
+  invoke<SyncResult>("sync_subscription", { subscriptionId });
 
 // Access tokens
 export const listAccessTokens = (subscriptionId: string) =>

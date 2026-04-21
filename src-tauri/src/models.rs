@@ -119,6 +119,14 @@ pub struct SyncPushResponse {
     pub admin_token: Option<String>,
 }
 
+/// Result returned to the frontend after sync_subscription.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyncResult {
+    pub root: Folder,
+    pub pulled: usize,
+    pub pushed: usize,
+}
+
 impl AddressBook {
     pub fn new() -> Self {
         Self {

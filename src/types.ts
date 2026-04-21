@@ -66,3 +66,9 @@ export interface CreatedToken {
   label: string;
   permissions: string;
 }
+
+export interface SyncResult {
+  root: Folder;
+  pulled: number;
+  pushed: number;
+}

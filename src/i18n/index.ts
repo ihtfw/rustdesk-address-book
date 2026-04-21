@@ -134,6 +134,7 @@ export interface Translations {
   syncNow: string;
   syncing: string;
   syncSuccess: string;
+  syncUpToDate: string;
   syncError: string;
   syncVersionError: string;
   syncReadOnly: string;

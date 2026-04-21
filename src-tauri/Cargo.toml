@@ -1,6 +1,6 @@
 [package]
 name = "rustdesk-address-book"
-version = "0.1.3"
+version = "0.1.4"
 description = "Encrypted address book for RustDesk connections"
 authors = ["ihtfw"]
 edition = "2021"

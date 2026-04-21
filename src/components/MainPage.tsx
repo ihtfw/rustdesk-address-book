@@ -564,9 +564,12 @@ export default function MainPage({
       return next;
     });
     try {
-      await api.syncSubscription(subscriptionId);
+      const result = await api.syncSubscription(subscriptionId);
       await refreshTree();
-      setToast(t.syncSuccess);
+      const msg = result.pulled > 0 || result.pushed > 0
+        ? t.syncSuccess
+        : t.syncUpToDate;
+      setToast(msg);
       setTimeout(() => setToast(""), 3000);
     } catch (err: unknown) {
       const msg = String(err);
@@ -596,7 +599,7 @@ export default function MainPage({
     if (subscriptions.length === 0) return;
     const interval = setInterval(() => {
       for (const sub of subscriptions) {
-        handleSync(sub.id);
+        syncQuiet(sub.id);
       }
     }, syncIntervalMs);
     return () => clearInterval(interval);
